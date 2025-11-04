@@ -11,7 +11,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 export {
   // Catch any errors thrown by the Layout component.
-  ErrorBoundary,
+  ErrorBoundary
 } from 'expo-router';
 
 export const unstable_settings = {
@@ -56,9 +56,16 @@ function RootLayoutNav() {
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-                {/* 🪴 Plant Details Screen */}
+        {/* 🪴 Plant Details Screen */}
         <Stack.Screen
           name="plantDetails"
+          options={{
+            headerShown: false
+          }}
+        />
+        {/* 🌱 Add Plant Screen */}
+        <Stack.Screen
+          name="addPlant"
           options={{
             headerShown: false
           }}

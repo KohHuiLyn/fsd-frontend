@@ -1,8 +1,9 @@
 "use client"
 
+import { Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
 import { useState } from "react"
-import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, Modal } from "react-native"
+import { Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 export default function MyPlants() {
@@ -11,6 +12,8 @@ export default function MyPlants() {
   const insets = useSafeAreaInsets()
   const [searchText, setSearchText] = useState("")
   const [showActions, setShowActions] = useState(false)
+  const [selectedPlantId, setSelectedPlantId] = useState<string | null>(null)
+  const [selectedActionId, setSelectedActionId] = useState<string | null>(null)
 
   const plants = [
     {
@@ -43,12 +46,12 @@ export default function MyPlants() {
   ]
 
   const actions = [
-    { id: "1", label: "Water", icon: "💧" },
-    { id: "2", label: "Fertilise", icon: "🌱" },
-    { id: "3", label: "Mist", icon: "💦" },
-    { id: "4", label: "Pruned", icon: "✂️" },
-    { id: "5", label: "Repot", icon: "🪴" },
-    { id: "6", label: "Picture", icon: "📷" },
+    { id: "1", label: "Water", iconName: "water-outline" },
+    { id: "2", label: "Fertilise", iconName: "flower-outline" },
+    { id: "3", label: "Mist", iconName: "water-outline" },
+    { id: "4", label: "Pruned", iconName: "cut-outline" },
+    { id: "5", label: "Repot", iconName: "leaf-outline" },
+    { id: "6", label: "Picture", iconName: "image-outline" },
   ]
 
   return (
@@ -57,40 +60,57 @@ export default function MyPlants() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Plants</Text>
         <TouchableOpacity>
-          <Text style={styles.searchIcon}>🔍</Text>
+          <Ionicons name="search-outline" size={24} color="#1a1a1a" />
         </TouchableOpacity>
       </View>
 
       {/* Plant List */}
       <ScrollView showsVerticalScrollIndicator={false}>
         {plants.map((plant) => (
-          <TouchableOpacity
-            key={plant.id}
-            style={styles.plantCard}
-            
-    onPress={() => router.push({
-      pathname: "/plantDetails",
-      params: { id: plant.id }
-    })}
-          >
-            <Image source={plant.image} style={styles.plantImage} />
-            <View style={styles.plantInfo}>
-              <Text style={styles.plantName}>{plant.name}</Text>
-              <Text style={styles.plantMeta}>
-                {plant.lastWatered} | {plant.status}
-              </Text>
-              <View style={styles.statusRow}>
-                <View style={[styles.statusBadge, { borderColor: plant.statusColor }]}>
-                  <Text style={{ color: plant.statusColor, fontSize: 12 }}>{plant.nextAction}</Text>
+          <View key={plant.id} style={styles.plantCard}>
+            <TouchableOpacity
+              style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+              onPress={() => router.push({ pathname: "/plantDetails", params: { id: plant.id } })}
+              activeOpacity={0.8}
+            >
+              <Image source={plant.image} style={styles.plantImage} />
+              <View style={styles.plantInfo}>
+                <Text style={styles.plantName}>{plant.name}</Text>
+                <View style={styles.statusRow}>
+                  <Ionicons name="checkbox-outline" size={16} color="#4CAF50" />
+                  <Text style={styles.plantMeta}>
+                    {plant.lastWatered} | {plant.status}
+                  </Text>
+                </View>
+                <View style={styles.statusRow}>
+                  <Ionicons name="notifications-outline" size={16} color={plant.statusColor} />
+                  <Text style={[styles.nextAction, { color: plant.statusColor }]}>
+                    {plant.nextAction}
+                  </Text>
                 </View>
               </View>
+            </TouchableOpacity>
+            <View style={styles.actionsRight}>
+              <TouchableOpacity
+                style={styles.moreBtn}
+                onPress={() => {
+                  setSelectedPlantId(plant.id)
+                  setShowActions(true)
+                }}
+                activeOpacity={0.9}
+              >
+                <Text style={styles.moreText}>More</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.primaryBtn} activeOpacity={0.9}>
+                <Text style={styles.primaryText}>Water</Text>
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
+          </View>
         ))}
       </ScrollView>
 
       {/* Floating Action Button */}
-      <TouchableOpacity style={styles.fab} onPress={() => setShowActions(true)}>
+      <TouchableOpacity style={styles.fab} onPress={() => router.push("/addPlant")}>
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
 
@@ -99,27 +119,72 @@ export default function MyPlants() {
         animationType="slide"
         transparent={true}
         visible={showActions}
-        onRequestClose={() => setShowActions(false)}
+        onRequestClose={() => {
+          setShowActions(false)
+          setSelectedActionId(null)
+        }}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>More Actions</Text>
-              <TouchableOpacity onPress={() => setShowActions(false)}>
-                <Text style={styles.closeBtn}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.actionsGrid}>
-              {actions.map((action) => (
-                <TouchableOpacity key={action.id} style={styles.actionButton} onPress={() => setShowActions(false)}>
-                  <Text style={styles.actionIcon}>{action.icon}</Text>
-                  <Text style={styles.actionLabel}>{action.label}</Text>
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => {
+            setShowActions(false)
+            setSelectedActionId(null)
+          }}
+        >
+          <TouchableOpacity 
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>More Actions</Text>
+                <TouchableOpacity onPress={() => {
+                  setShowActions(false)
+                  setSelectedActionId(null)
+                }}>
+                  <Ionicons name="close-outline" size={24} color="#999" />
                 </TouchableOpacity>
-              ))}
+              </View>
+
+              <View style={styles.actionsGrid}>
+                {actions.map((action) => {
+                  const isSelected = selectedActionId === action.id
+                  return (
+                    <TouchableOpacity 
+                      key={action.id} 
+                      style={[
+                        styles.actionButton,
+                        isSelected && styles.actionButtonSelected
+                      ]} 
+                      onPress={() => {
+                        setSelectedActionId(action.id)
+                        // Close modal after a brief delay to show selection
+                        setTimeout(() => {
+                          setShowActions(false)
+                          setSelectedActionId(null)
+                        }, 300)
+                      }}
+                    >
+                      <Ionicons 
+                        name={action.iconName as any} 
+                        size={32} 
+                        color="#4CAF50" 
+                        style={styles.actionIcon}
+                      />
+                      <Text style={[
+                        styles.actionLabel,
+                        isSelected && styles.actionLabelSelected
+                      ]}>
+                        {action.label}
+                      </Text>
+                    </TouchableOpacity>
+                  )
+                })}
+              </View>
             </View>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     </View>
   )
@@ -142,16 +207,13 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#1a1a1a",
   },
-  searchIcon: {
-    fontSize: 20,
-  },
   plantCard: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     marginHorizontal: 15,
     marginVertical: 10,
     padding: 12,
-    backgroundColor: "#f9f9f9",
+    backgroundColor: "#fff",
     borderRadius: 12,
     elevation: 2,
     shadowColor: "#000",
@@ -161,32 +223,68 @@ const styles = StyleSheet.create({
   },
   plantImage: {
     width: 80,
-    height: 80,
+    height: 120,
     borderRadius: 12,
     marginRight: 12,
+    resizeMode: "cover",
   },
   plantInfo: {
     flex: 1,
+    justifyContent: "space-between",
+    minHeight: 120,
   },
   plantName: {
     fontSize: 16,
     fontWeight: "600",
     color: "#1a1a1a",
-    marginBottom: 4,
+    marginBottom: 8,
   },
   plantMeta: {
     fontSize: 12,
     color: "#999",
-    marginBottom: 8,
+    marginLeft: 6,
   },
   statusRow: {
     flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
   },
-  statusBadge: {
+  nextAction: {
+    fontSize: 12,
+    fontWeight: "500",
+    marginLeft: 6,
+  },
+  actionsRight: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "flex-end",
+    marginLeft: 8,
+    minHeight: 120,
+    paddingBottom: 4,
+  },
+  moreBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
     borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    borderColor: "#cfcfcf",
+    borderRadius: 18,
+    backgroundColor: "#fff",
+    marginRight: 8,
+  },
+  moreText: {
+    fontSize: 13,
+    color: "#1a1a1a",
+    fontWeight: "600",
+  },
+  primaryBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 18,
+    backgroundColor: "#4CAF50",
+  },
+  primaryText: {
+    color: "#fff",
+    fontWeight: "700",
   },
   fab: {
     position: "absolute",
@@ -211,7 +309,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
     justifyContent: "flex-end",
   },
   modalContent: {
@@ -220,6 +318,11 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     paddingTop: 20,
     paddingBottom: 30,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
   },
   modalHeader: {
     flexDirection: "row",
@@ -233,32 +336,36 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#1a1a1a",
   },
-  closeBtn: {
-    fontSize: 24,
-    color: "#999",
-  },
   actionsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     paddingHorizontal: 15,
+    justifyContent: "space-between",
   },
   actionButton: {
     width: "48%",
     aspectRatio: 1,
-    margin: "1%",
-    borderWidth: 2,
+    marginBottom: 12,
+    borderWidth: 1,
     borderColor: "#ddd",
     borderRadius: 12,
+    backgroundColor: "#fff",
     justifyContent: "center",
     alignItems: "center",
   },
+  actionButtonSelected: {
+    backgroundColor: "#4CAF50",
+    borderColor: "#4CAF50",
+  },
   actionIcon: {
-    fontSize: 32,
     marginBottom: 8,
   },
   actionLabel: {
     fontSize: 14,
     fontWeight: "600",
     color: "#1a1a1a",
+  },
+  actionLabelSelected: {
+    color: "#fff",
   },
 })

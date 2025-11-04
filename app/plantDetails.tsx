@@ -1,19 +1,17 @@
 "use client"
 
+import { useLocalSearchParams, useRouter } from "expo-router"
 import { useState } from "react"
-import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, Dimensions } from "react-native"
-import { useSafeAreaInsets } from "react-native-safe-area-context"
-import { useRouter, useLocalSearchParams } from "expo-router"
+import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from "react-native"
 
-import ToDoTab from "../components/PlantDetails/ToDoTab"
-import JournalTab from "../components/PlantDetails/JournalTab"
+import Template from "@/components/Template"
 import AnalyticsTab from "../components/PlantDetails/AnalyticsTab"
 import GalleryTab from "../components/PlantDetails/GalleryTab"
-import Template from "@/components/Template"
+import JournalTab from "../components/PlantDetails/JournalTab"
+import ToDoTab from "../components/PlantDetails/ToDoTab"
 const { width } = Dimensions.get("window")
 
 export default function PlantDetails() {
-  const insets = useSafeAreaInsets()
   const router = useRouter()
   const params = useLocalSearchParams() // 🌿 get params from router.push()
   
@@ -50,51 +48,49 @@ export default function PlantDetails() {
   }
 
   return (
-<Template
-      title="Chili Padi"
-      image={require("../assets/images/dummy/chilli_padi.jpg")}>
-  
+    <Template
+      title={String(plantData.name)}
+      image={plantData.image}
+      imageHeader
+      onPressBack={() => router.back()}
+      onPressSettings={() => {}}
+    >
+      <View style={styles.infoSection}>
+        <Text style={styles.plantName}>{plantData.name}</Text>
+        <Text style={styles.lastWatered}>Last watered {plantData.lastWatered}</Text>
 
-      {/* Plant Info Section */}
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
-        <View style={styles.infoSection}>
-          <Text style={styles.plantName}>{plantData.name}</Text>
-          <Text style={styles.lastWatered}>Last watered {plantData.lastWatered}</Text>
-
-          {/* Notes */}
-          <View style={styles.notesContainer}>
-            <Text style={styles.notesLabel}>Notes</Text>
-            <Text style={styles.notesText}>{plantData.notes}</Text>
-          </View>
-
-          {/* Tabs */}
-          <View style={styles.tabsContainer}>
-            {tabs.map((tab) => (
-              <TouchableOpacity
-                key={tab.id}
-                style={[styles.tab, activeTab === tab.id && styles.tabActive]}
-                onPress={() => setActiveTab(tab.id)}
-              >
-                <Text style={[styles.tabLabel, activeTab === tab.id && styles.tabLabelActive]}>{tab.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Tab Underline */}
-          <View style={styles.tabUnderline}>
-            <View
-              style={[
-                styles.activeUnderline,
-                { left: tabs.findIndex((t) => t.id === activeTab) * (width / 4) },
-              ]}
-            />
-          </View>
-
-          {/* Tab Content */}
-          <View style={styles.tabContent}>{renderTabContent()}</View>
+        {/* Notes */}
+        <View style={styles.notesContainer}>
+          <Text style={styles.notesLabel}>Notes</Text>
+          <Text style={styles.notesText}>{plantData.notes}</Text>
         </View>
-      </ScrollView>
-        
+
+        {/* Tabs */}
+        <View style={styles.tabsContainer}>
+          {tabs.map((tab) => (
+            <TouchableOpacity
+              key={tab.id}
+              style={[styles.tab, activeTab === tab.id && styles.tabActive]}
+              onPress={() => setActiveTab(tab.id)}
+            >
+              <Text style={[styles.tabLabel, activeTab === tab.id && styles.tabLabelActive]}>{tab.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Tab Underline */}
+        <View style={styles.tabUnderline}>
+          <View
+            style={[
+              styles.activeUnderline,
+              { left: tabs.findIndex((t) => t.id === activeTab) * (width / 4) },
+            ]}
+          />
+        </View>
+
+        {/* Tab Content */}
+        <View style={styles.tabContent}>{renderTabContent()}</View>
+      </View>
     </Template>
   )
 }

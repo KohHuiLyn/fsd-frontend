@@ -1,13 +1,14 @@
-import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet } from "react-native"
+import { horizontalScale as hs, scaleFont, verticalScale as vs } from "@/utils/scale"
+import { useRouter } from "expo-router"
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
-import logo from "../../assets/images/logo.png"
 import chilliPadi from "../../assets/images/dummy/chilli_padi.jpg"
 import lime from "../../assets/images/dummy/lime.jpeg"
 import pandan from "../../assets/images/dummy/pandan.jpg"
-import plantDoctor from "../../assets/images/plant_doctor.png"
+import logo from "../../assets/images/logo.png"
 import monsterra from "../../assets/images/monsterra.png"
+import plantDoctor from "../../assets/images/plant_doctor.png"
 import snakeplant from "../../assets/images/snakeplant.png"
-import { useRouter } from "expo-router"
 
 export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets()
@@ -64,7 +65,7 @@ export default function HomeScreen({ navigation }) {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={{ paddingBottom: insets.bottom + 50 }}
+      contentContainerStyle={{ paddingBottom: insets.bottom + vs(50) }}
       showsVerticalScrollIndicator={false}
     >
       {/* Header */}
@@ -82,9 +83,13 @@ export default function HomeScreen({ navigation }) {
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.popularScroll}>
           {popularPlants.map((plant) => (
-            <TouchableOpacity key={plant.id} style={styles.popularCard} activeOpacity={0.9}>
+            <TouchableOpacity key={plant.id} style={styles.popularItem} activeOpacity={0.9}>
+              {/* Image floats above the card */}
               <Image source={plant.image} style={styles.popularImage} />
-              <Text style={styles.popularName}>{plant.name}</Text>
+              {/* Card */}
+              <View style={styles.popularCard}>
+                <Text style={styles.popularName}>{plant.name}</Text>
+              </View>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -156,32 +161,35 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
-    paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingHorizontal: hs(20),
+    paddingTop: vs(20),
   },
   header: {
-    marginBottom: 25,
+    marginVertical: 10,
   },
   logoImage: {
-    width: 140,
-    height: 40,
+    width: hs(140),
+    height: vs(42),
+    marginHorizontal:hs(-25)
   },
   section: {
-    marginBottom: 30,
+    marginBottom: vs(30),
   },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 15,
+    
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: scaleFont(18),
     fontWeight: "600",
     color: "#1a1a1a",
+    
+    marginBottom: vs(2),
   },
   viewAll: {
-    fontSize: 14,
+    fontSize: scaleFont(14),
     color: "#4CAF50",
     fontWeight: "500",
   },
@@ -189,37 +197,42 @@ const styles = StyleSheet.create({
     marginHorizontal: -20,
     paddingHorizontal: 20,
   },
+  popularItem: {
+    width: hs(160),
+    marginRight: hs(16),
+    position: "relative",
+    paddingTop: vs(50), // space for image that peeks out
+  },
   popularCard: {
-    width: 160,
-    height: 200,
-    marginRight: 15,
+    width: "100%",
     backgroundColor: "#f5f5f5",
-    borderRadius: 16,
+    borderRadius: 20,
     overflow: "hidden",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    paddingBottom: 12,
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    paddingTop: vs(60),
+    paddingHorizontal: hs(12),
+    paddingBottom: vs(18),
   },
   popularImage: {
-    width: 100,
-    height: 120,
+    position: "absolute",
+    top: vs(12), // peeks from container, not clipped by card radius
+
+    right: -30,
+    marginLeft: "auto",
+    marginRight: "auto",
+    width: hs(145),
+    height: hs(145),
     resizeMode: "contain",
-    marginBottom: 8,
+    zIndex: 2,
   },
   popularName: {
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: scaleFont(14),
+    fontWeight: "700",
     color: "#1a1a1a",
-    textAlign: "center",
-    paddingHorizontal: 8,
+    textAlign: "left",
+    paddingRight: hs(10),
   },
   doctorWrapper: {
-    marginBottom: 30,
+    marginBottom: vs(30),
   },
   doctorCard: {
     backgroundColor: "#1abc9c",
@@ -232,7 +245,7 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
   },
   doctorImageWrapper: {
-    height: 150,
+    height: vs(150),
     justifyContent: "center",
     alignItems: "center",
   },
@@ -243,46 +256,46 @@ const styles = StyleSheet.create({
   },
   doctorContent: {
     backgroundColor: "#e0f7f4",
-    padding: 16,
+    padding: hs(16),
   },
   doctorTitle: {
-    fontSize: 16,
+    fontSize: scaleFont(16),
     fontWeight: "700",
     color: "#1a1a1a",
     marginBottom: 8,
   },
   doctorDesc: {
-    fontSize: 13,
+    fontSize: scaleFont(13),
     color: "#333",
-    lineHeight: 18,
+    lineHeight: vs(18),
     marginBottom: 12,
   },
   diagnosisBtn: {
-    fontSize: 14,
+    fontSize: scaleFont(14),
     fontWeight: "700",
     color: "#000",
   },
   myPlantRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 15,
-    paddingBottom: 15,
+    marginBottom: vs(15),
+    paddingBottom: vs(15),
     borderBottomWidth: 1,
     borderBottomColor: "#f0f0f0",
   },
   myPlantImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 12,
-    marginRight: 15,
+    width: hs(60),
+    height: hs(60),
+    borderRadius: hs(12),
+    marginRight: hs(15),
   },
   myPlantDate: {
-    fontSize: 12,
+    fontSize: scaleFont(12),
     color: "#999",
     marginBottom: 4,
   },
   myPlantName: {
-    fontSize: 15,
+    fontSize: scaleFont(15),
     fontWeight: "600",
     color: "#1a1a1a",
   },
@@ -290,30 +303,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#f9f9f9",
-    padding: 12,
+    padding: hs(12),
     borderRadius: 12,
-    marginBottom: 12,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
+    marginBottom: vs(12),
   },
   reminderImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 10,
-    marginRight: 12,
+    width: hs(50),
+    height: hs(50),
+    borderRadius: hs(10),
+    marginRight: hs(12),
   },
   reminderTitle: {
-    fontSize: 14,
+    fontSize: scaleFont(14),
     fontWeight: "600",
     color: "#1a1a1a",
     marginBottom: 3,
   },
   reminderDesc: {
-    fontSize: 12,
+    fontSize: scaleFont(12),
     color: "#666",
-    lineHeight: 16,
+    lineHeight: vs(16),
   },
 })
