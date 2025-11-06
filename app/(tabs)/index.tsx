@@ -106,7 +106,7 @@ export default function HomeScreen({ navigation }) {
             <Text style={styles.doctorDesc}>
               Upload a photo of your plant and get an AI-powered diagnosis of your plant in seconds!
             </Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push("/diagnosisCamera")}>
               <Text style={styles.diagnosisBtn}>Start Diagnosis →</Text>
             </TouchableOpacity>
           </View>
@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#1a1a1a",
     
-    marginBottom: vs(2),
+    marginBottom: vs(10),
   },
   viewAll: {
     fontSize: scaleFont(14),

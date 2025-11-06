@@ -1,7 +1,9 @@
 "use client"
 
+import { horizontalScale as hs, moderateScale as ms, verticalScale as vs } from "@/utils/scale"
+import { MaterialCommunityIcons } from "@expo/vector-icons"
 import { useState } from "react"
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native"
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native"
 
 export default function ToDoTab() {
   const [tasks, setTasks] = useState({
@@ -12,17 +14,53 @@ export default function ToDoTab() {
         completed: false,
         status: "Overdue by 2 days",
         hasReminder: true,
+        isSnoozed: true,
       },
     ],
-    Morning: [{ id: "2", label: "Water", completed: true, status: null, hasReminder: true }],
-    Night: [{ id: "3", label: "Water", completed: true, status: null, hasReminder: true }],
+    Morning: [{ 
+      id: "2", 
+      label: "Water", 
+      completed: true, 
+      status: null, 
+      hasReminder: true,
+      isSnoozed: false,
+    }],
+    Night: [{ 
+      id: "3", 
+      label: "Water", 
+      completed: true, 
+      status: null, 
+      hasReminder: true,
+      isSnoozed: false,
+    }],
   })
 
-  const toggleTask = (section, taskId) => {
+  const toggleTask = (section: keyof typeof tasks, taskId: string) => {
     setTasks((prev) => ({
       ...prev,
-      [section]: prev[section].map((task) => (task.id === taskId ? { ...task, completed: !task.completed } : task)),
+      [section]: prev[section].map((task: any) => (task.id === taskId ? { ...task, completed: !task.completed } : task)),
     }))
+  }
+
+  const toggleSnooze = (section: keyof typeof tasks, taskId: string) => {
+    setTasks((prev) => ({
+      ...prev,
+      [section]: prev[section].map((task: any) => (task.id === taskId ? { ...task, isSnoozed: !task.isSnoozed } : task)),
+    }))
+  }
+
+  const getTaskIcon = (label: string) => {
+    switch (label.toLowerCase()) {
+      case "water":
+        return "water"
+      case "fertilise":
+      case "fertilize":
+        return "flower"
+      case "mist":
+        return "water"
+      default:
+        return "leaf"
+    }
   }
 
   return (
@@ -36,36 +74,85 @@ export default function ToDoTab() {
 
             {sectionTasks.map((task) => (
               <View key={task.id} style={[styles.taskCard, task.completed && styles.taskCompleted]}>
-                <TouchableOpacity style={styles.checkbox} onPress={() => toggleTask(section, task.id)}>
+                {/* Task Icon in Black Circle */}
+                <View style={styles.iconCircle}>
+                  <MaterialCommunityIcons 
+                    name={getTaskIcon(task.label) as any} 
+                    size={ms(20)} 
+                    color="#fff" 
+                  />
+                </View>
+
+                {/* Task Info */}
+                <View style={styles.taskInfo}>
+                  <Text style={[styles.taskLabel, task.completed && styles.taskLabelCompleted]}>
+                    {task.label}
+                  </Text>
+                  {task.status && <Text style={styles.taskStatus}>{task.status}</Text>}
+                </View>
+
+                {/* Notification Bell */}
+                {task.hasReminder && (
+                  <TouchableOpacity 
+                    onPress={() => toggleSnooze(section as keyof typeof tasks, task.id)}
+                    style={styles.bellContainer}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons 
+                      name="bell" 
+                      size={ms(20)} 
+                      color="#1a1a1a" 
+                    />
+                    {task.isSnoozed && (
+                      <View style={styles.snoozeOverlay}>
+                        <Text style={styles.snoozeText}>Zz</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                )}
+
+                {/* Completion Checkbox */}
+                <TouchableOpacity 
+                  style={styles.checkbox} 
+                  onPress={() => toggleTask(section as keyof typeof tasks, task.id)}
+                  activeOpacity={0.7}
+                >
                   {task.completed ? (
-                    <Text style={styles.checkboxChecked}>✓</Text>
+                    <View style={styles.checkboxChecked}>
+                      <MaterialCommunityIcons name="check" size={ms(16)} color="#fff" />
+                    </View>
                   ) : (
                     <View style={styles.checkboxEmpty} />
                   )}
                 </TouchableOpacity>
-
-                <View style={styles.taskInfo}>
-                  <Text style={[styles.taskLabel, task.completed && styles.taskLabelCompleted]}>{task.label}</Text>
-                  {task.status && <Text style={styles.taskStatus}>{task.status}</Text>}
-                </View>
-
-                {task.hasReminder && <Text style={styles.reminderIcon}>🔔</Text>}
               </View>
             ))}
           </View>
         ))}
 
         {/* Historical dates */}
-        <Text style={[styles.todayLabel, { marginTop: 25 }]}>29 Oct</Text>
+        <Text style={[styles.todayLabel, { marginTop: vs(25) }]}>29 Oct</Text>
         <View style={styles.section}>
           <View style={styles.taskCard}>
-            <TouchableOpacity style={styles.checkbox}>
-              <View style={styles.checkboxEmpty} />
-            </TouchableOpacity>
+            {/* Task Icon in Black Circle */}
+            <View style={styles.iconCircle}>
+              <MaterialCommunityIcons 
+                name="flower" 
+                size={ms(20)} 
+                color="#fff" 
+              />
+            </View>
+
+            {/* Task Info */}
             <View style={styles.taskInfo}>
               <Text style={styles.taskLabel}>Fertilise</Text>
               <Text style={styles.taskStatusMissed}>Missed</Text>
             </View>
+
+            {/* Completion Checkbox */}
+            <TouchableOpacity style={styles.checkbox}>
+              <View style={styles.checkboxEmpty} />
+            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -75,90 +162,121 @@ export default function ToDoTab() {
 
 const styles = StyleSheet.create({
   container: {
-    paddingBottom: 20,
+    paddingBottom: vs(20),
   },
   todayLabel: {
-    fontSize: 16,
+    fontSize: ms(16),
     fontWeight: "600",
     color: "#1a1a1a",
-    marginBottom: 12,
+    marginBottom: vs(12),
   },
   section: {
-    marginBottom: 20,
+    marginBottom: vs(20),
     backgroundColor: "#faf8f3",
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: ms(8),
+    padding: ms(12),
   },
   sectionTitle: {
-    fontSize: 12,
+    fontSize: ms(12),
     fontWeight: "600",
     color: "#c9a583",
-    marginBottom: 12,
+    marginBottom: vs(12),
     textTransform: "uppercase",
   },
   taskCard: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    marginBottom: 8,
+    paddingVertical: vs(12),
+    paddingHorizontal: hs(8),
+    marginBottom: vs(8),
     backgroundColor: "#fff",
-    borderRadius: 8,
+    borderRadius: ms(8),
     elevation: 1,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: vs(1) },
     shadowOpacity: 0.05,
-    shadowRadius: 2,
+    shadowRadius: ms(2),
   },
   taskCompleted: {
     opacity: 0.6,
   },
-  checkbox: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  iconCircle: {
+    width: hs(44),
+    height: hs(44),
+    borderRadius: ms(22),
     backgroundColor: "#1a1a1a",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
-  },
-  checkboxEmpty: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: "#fff",
-  },
-  checkboxChecked: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "bold",
+    marginRight: hs(12),
   },
   taskInfo: {
     flex: 1,
   },
   taskLabel: {
-    fontSize: 14,
+    fontSize: ms(14),
     fontWeight: "600",
     color: "#1a1a1a",
-    marginBottom: 3,
+    marginBottom: vs(3),
   },
   taskLabelCompleted: {
     textDecorationLine: "line-through",
     color: "#999",
   },
   taskStatus: {
-    fontSize: 11,
+    fontSize: ms(11),
     color: "#d32f2f",
     fontWeight: "500",
   },
   taskStatusMissed: {
-    fontSize: 11,
+    fontSize: ms(11),
     color: "#d32f2f",
     fontWeight: "500",
   },
-  reminderIcon: {
-    fontSize: 16,
-    marginLeft: 8,
+  bellContainer: {
+    position: "relative",
+    marginRight: hs(12),
+    padding: ms(4),
+  },
+  snoozeOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    borderRadius: ms(4),
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  snoozeText: {
+    fontSize: ms(8),
+    fontWeight: "700",
+    color: "#1a1a1a",
+    letterSpacing: -0.5,
+  },
+  checkbox: {
+    width: hs(20),
+    height: hs(20),
+    borderRadius: ms(120),
+    borderWidth: 1,
+    borderColor: "#f8f8f8",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  checkboxEmpty: {
+    width: hs(20),
+    height: hs(20),
+    borderRadius: ms(10),
+    borderWidth: 2,
+    borderColor: "#8C8C8C",
+  },
+  checkboxChecked: {
+    width: hs(20),
+    height: hs(20),
+    borderRadius: ms(12),
+    backgroundColor: "#4CAF50",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 0,
   },
 })

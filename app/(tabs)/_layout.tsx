@@ -1,6 +1,6 @@
 import React from "react";
 import { Tabs } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 export default function TabsLayout() {
   return (
@@ -27,7 +27,7 @@ export default function TabsLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" size={size} color={color} />
+            <MaterialCommunityIcons name="home" size={size} color={color} />
           ),
         }}
       />
@@ -37,7 +37,7 @@ export default function TabsLayout() {
         options={{
           title: "My Plants",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="leaf-outline" size={size} color={color} />
+            <MaterialCommunityIcons name="leaf" size={size} color={color} />
           ),
         }}
       />
@@ -47,7 +47,7 @@ export default function TabsLayout() {
         options={{
           title: "PlantPedia",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="book-outline" size={size} color={color} />
+            <MaterialCommunityIcons name="book-open-variant" size={size} color={color} />
           ),
         }}
       />
@@ -57,7 +57,7 @@ export default function TabsLayout() {
         options={{
           title: "Reminders",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="notifications-outline" size={size} color={color} />
+            <MaterialCommunityIcons name="bell-outline" size={size} color={color} />
           ),
         }}
       />
@@ -67,7 +67,7 @@ export default function TabsLayout() {
         options={{
           title: "Profile",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-outline" size={size} color={color} />
+            <MaterialCommunityIcons name="account" size={size} color={color} />
           ),
         }}
       />

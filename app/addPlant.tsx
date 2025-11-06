@@ -1,6 +1,6 @@
 "use client"
 
-import { Ionicons } from "@expo/vector-icons"
+import { MaterialCommunityIcons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
 import { useState } from "react"
 import {
@@ -25,17 +25,33 @@ export default function AddPlant() {
   const [location, setLocation] = useState("")
   const [selectedImages, setSelectedImages] = useState<string[]>([])
   
-  // Notification settings
+  // Notification settings - each activity has its own schedule
   const [notificationTypes, setNotificationTypes] = useState({
-    water: { enabled: false, schedule: "daily" },
-    mist: { enabled: false, schedule: "daily" },
-    prune: { enabled: false, schedule: "daily" },
-    fertilise: { enabled: false, schedule: "daily" },
+    water: { 
+      enabled: false, 
+      scheduleType: "daily" as "daily" | "weekly" | "interval",
+      selectedDays: [false, false, false, false, false, false, false] as boolean[],
+      intervalDays: "1"
+    },
+    mist: { 
+      enabled: false, 
+      scheduleType: "daily" as "daily" | "weekly" | "interval",
+      selectedDays: [false, false, false, false, false, false, false] as boolean[],
+      intervalDays: "1"
+    },
+    prune: { 
+      enabled: false, 
+      scheduleType: "daily" as "daily" | "weekly" | "interval",
+      selectedDays: [false, false, false, false, false, false, false] as boolean[],
+      intervalDays: "1"
+    },
+    fertilise: { 
+      enabled: false, 
+      scheduleType: "daily" as "daily" | "weekly" | "interval",
+      selectedDays: [false, false, false, false, false, false, false] as boolean[],
+      intervalDays: "1"
+    },
   })
-  
-  const [scheduleType, setScheduleType] = useState<"daily" | "weekly" | "interval">("daily")
-  const [selectedDays, setSelectedDays] = useState<boolean[]>([false, false, false, false, false, false, false])
-  const [intervalDays, setIntervalDays] = useState("1")
   
   const weekDays = ["M", "T", "W", "T", "F", "S", "S"]
   
@@ -46,10 +62,29 @@ export default function AddPlant() {
     }))
   }
   
-  const toggleDay = (index: number) => {
-    const newDays = [...selectedDays]
-    newDays[index] = !newDays[index]
-    setSelectedDays(newDays)
+  const setScheduleType = (type: keyof typeof notificationTypes, scheduleType: "daily" | "weekly" | "interval") => {
+    setNotificationTypes((prev) => ({
+      ...prev,
+      [type]: { ...prev[type], scheduleType },
+    }))
+  }
+  
+  const toggleDay = (activityType: keyof typeof notificationTypes, index: number) => {
+    setNotificationTypes((prev) => {
+      const newDays = [...prev[activityType].selectedDays]
+      newDays[index] = !newDays[index]
+      return {
+        ...prev,
+        [activityType]: { ...prev[activityType], selectedDays: newDays },
+      }
+    })
+  }
+  
+  const setIntervalDays = (type: keyof typeof notificationTypes, days: string) => {
+    setNotificationTypes((prev) => ({
+      ...prev,
+      [type]: { ...prev[type], intervalDays: days },
+    }))
   }
   
   const handleSave = () => {
@@ -60,9 +95,6 @@ export default function AddPlant() {
       location,
       selectedImages,
       notificationTypes,
-      scheduleType,
-      selectedDays,
-      intervalDays,
     })
     router.back()
   }
@@ -77,7 +109,7 @@ export default function AddPlant() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={24} color="#1a1a1a" />
+          <MaterialCommunityIcons name="chevron-left" size={24} color="#1a1a1a" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Add Plant</Text>
         <TouchableOpacity onPress={handleSave}>
@@ -94,7 +126,7 @@ export default function AddPlant() {
               <Image source={{ uri: selectedImages[0] }} style={styles.imagePreview} />
             ) : (
               <View style={styles.imagePlaceholder}>
-                <Ionicons name="camera-outline" size={32} color="#999" />
+                <MaterialCommunityIcons name="camera-outline" size={32} color="#999" />
                 <Text style={styles.imagePlaceholderText}>Tap to add image</Text>
               </View>
             )}
@@ -116,95 +148,106 @@ export default function AddPlant() {
         {/* Notifications */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Notifications</Text>
-          
-          {/* Schedule Type Selection */}
-          <View style={styles.scheduleTypeContainer}>
-            <TouchableOpacity
-              style={[styles.scheduleTypeBtn, scheduleType === "daily" && styles.scheduleTypeBtnActive]}
-              onPress={() => setScheduleType("daily")}
-            >
-              <Text style={[styles.scheduleTypeText, scheduleType === "daily" && styles.scheduleTypeTextActive]}>
-                Daily
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.scheduleTypeBtn, scheduleType === "weekly" && styles.scheduleTypeBtnActive]}
-              onPress={() => setScheduleType("weekly")}
-            >
-              <Text style={[styles.scheduleTypeText, scheduleType === "weekly" && styles.scheduleTypeTextActive]}>
-                Weekly
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.scheduleTypeBtn, scheduleType === "interval" && styles.scheduleTypeBtnActive]}
-              onPress={() => setScheduleType("interval")}
-            >
-              <Text style={[styles.scheduleTypeText, scheduleType === "interval" && styles.scheduleTypeTextActive]}>
-                Every X Days
-              </Text>
-            </TouchableOpacity>
-          </View>
 
-          {/* Weekly Days Selection */}
-          {scheduleType === "weekly" && (
-            <View style={styles.daysContainer}>
-              {weekDays.map((day, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[styles.dayButton, selectedDays[index] && styles.dayButtonActive]}
-                  onPress={() => toggleDay(index)}
-                >
-                  <Text style={[styles.dayText, selectedDays[index] && styles.dayTextActive]}>{day}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-
-          {/* Interval Days Input */}
-          {scheduleType === "interval" && (
-            <View style={styles.intervalContainer}>
-              <TextInput
-                style={styles.intervalInput}
-                placeholder="1"
-                value={intervalDays}
-                onChangeText={setIntervalDays}
-                keyboardType="numeric"
-                placeholderTextColor="#999"
-              />
-              <Text style={styles.intervalLabel}>days</Text>
-            </View>
-          )}
-
-          {/* Notification Types */}
+          {/* Notification Types with Individual Schedules */}
           <View style={styles.notificationTypes}>
-            {Object.entries(notificationTypes).map(([key, value]) => (
-              <View key={key} style={styles.notificationRow}>
-                <View style={styles.notificationLeft}>
-                  <Ionicons
-                    name={
-                      key === "water"
-                        ? "water-outline"
-                        : key === "mist"
-                        ? "water-outline"
-                        : key === "prune"
-                        ? "cut-outline"
-                        : "flower-outline"
-                    }
-                    size={20}
-                    color="#4CAF50"
-                  />
-                  <Text style={styles.notificationLabel}>
-                    {key.charAt(0).toUpperCase() + key.slice(1)}
-                  </Text>
+            {Object.entries(notificationTypes).map(([key, value]) => {
+              const activityType = key as keyof typeof notificationTypes
+              return (
+                <View key={key} style={styles.notificationItem}>
+                  {/* Activity Toggle Row */}
+                  <View style={styles.notificationRow}>
+                    <View style={styles.notificationLeft}>
+                      <MaterialCommunityIcons
+                        name={
+                          key === "water"
+                            ? "water"
+                            : key === "mist"
+                            ? "water"
+                            : key === "prune"
+                            ? "content-cut"
+                            : "flower"
+                        }
+                        size={20}
+                        color="#4CAF50"
+                      />
+                      <Text style={styles.notificationLabel}>
+                        {key.charAt(0).toUpperCase() + key.slice(1)}
+                      </Text>
+                    </View>
+                    <Switch
+                      value={value.enabled}
+                      onValueChange={() => toggleNotification(activityType)}
+                      trackColor={{ false: "#ddd", true: "#4CAF50" }}
+                      thumbColor="#fff"
+                    />
+                  </View>
+
+                  {/* Schedule Options - Only show when enabled */}
+                  {value.enabled && (
+                    <View style={styles.scheduleOptions}>
+                      {/* Schedule Type Selection */}
+                      <View style={styles.scheduleTypeContainer}>
+                        <TouchableOpacity
+                          style={[styles.scheduleTypeBtn, value.scheduleType === "daily" && styles.scheduleTypeBtnActive]}
+                          onPress={() => setScheduleType(activityType, "daily")}
+                        >
+                          <Text style={[styles.scheduleTypeText, value.scheduleType === "daily" && styles.scheduleTypeTextActive]}>
+                            Daily
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.scheduleTypeBtn, value.scheduleType === "weekly" && styles.scheduleTypeBtnActive]}
+                          onPress={() => setScheduleType(activityType, "weekly")}
+                        >
+                          <Text style={[styles.scheduleTypeText, value.scheduleType === "weekly" && styles.scheduleTypeTextActive]}>
+                            Weekly
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.scheduleTypeBtn, value.scheduleType === "interval" && styles.scheduleTypeBtnActive]}
+                          onPress={() => setScheduleType(activityType, "interval")}
+                        >
+                          <Text style={[styles.scheduleTypeText, value.scheduleType === "interval" && styles.scheduleTypeTextActive]}>
+                            Every X Days
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* Weekly Days Selection */}
+                      {value.scheduleType === "weekly" && (
+                        <View style={styles.daysContainer}>
+                          {weekDays.map((day, index) => (
+                            <TouchableOpacity
+                              key={index}
+                              style={[styles.dayButton, value.selectedDays[index] && styles.dayButtonActive]}
+                              onPress={() => toggleDay(activityType, index)}
+                            >
+                              <Text style={[styles.dayText, value.selectedDays[index] && styles.dayTextActive]}>{day}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+
+                      {/* Interval Days Input */}
+                      {value.scheduleType === "interval" && (
+                        <View style={styles.intervalContainer}>
+                          <TextInput
+                            style={styles.intervalInput}
+                            placeholder="1"
+                            value={value.intervalDays}
+                            onChangeText={(text) => setIntervalDays(activityType, text)}
+                            keyboardType="numeric"
+                            placeholderTextColor="#999"
+                          />
+                          <Text style={styles.intervalLabel}>days</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
                 </View>
-                <Switch
-                  value={value.enabled}
-                  onValueChange={() => toggleNotification(key as keyof typeof notificationTypes)}
-                  trackColor={{ false: "#ddd", true: "#4CAF50" }}
-                  thumbColor="#fff"
-                />
-              </View>
-            ))}
+              )
+            })}
           </View>
         </View>
 
@@ -388,13 +431,23 @@ const styles = StyleSheet.create({
   notificationTypes: {
     marginTop: vs(8),
   },
+  notificationItem: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+    paddingBottom: vs(16),
+    marginBottom: vs(16),
+  },
   notificationRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: vs(12),
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
+  },
+  scheduleOptions: {
+    marginTop: vs(12),
+    paddingTop: vs(12),
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
   },
   notificationLeft: {
     flexDirection: "row",

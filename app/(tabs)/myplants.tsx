@@ -1,6 +1,7 @@
 "use client"
 
-import { Ionicons } from "@expo/vector-icons"
+import { horizontalScale as hs, moderateScale as ms, verticalScale as vs } from "@/utils/scale"
+import { MaterialCommunityIcons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
 import { useState } from "react"
 import { Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native"
@@ -12,8 +13,9 @@ export default function MyPlants() {
   const insets = useSafeAreaInsets()
   const [searchText, setSearchText] = useState("")
   const [showActions, setShowActions] = useState(false)
-  const [selectedPlantId, setSelectedPlantId] = useState<string | null>(null)
-  const [selectedActionId, setSelectedActionId] = useState<string | null>(null)
+  const [isSelectionMode, setIsSelectionMode] = useState(false)
+  const [selectedPlantIds, setSelectedPlantIds] = useState<string[]>([])
+  const [selectedActionIds, setSelectedActionIds] = useState<string[]>([])
 
   const plants = [
     {
@@ -49,70 +51,170 @@ export default function MyPlants() {
     { id: "1", label: "Water", iconName: "water-outline" },
     { id: "2", label: "Fertilise", iconName: "flower-outline" },
     { id: "3", label: "Mist", iconName: "water-outline" },
-    { id: "4", label: "Pruned", iconName: "cut-outline" },
+    { id: "4", label: "Prune", iconName: "cut-outline" },
     { id: "5", label: "Repot", iconName: "leaf-outline" },
     { id: "6", label: "Picture", iconName: "image-outline" },
   ]
+
+  const toggleSelectionMode = () => {
+    setIsSelectionMode(!isSelectionMode)
+    if (isSelectionMode) {
+      setSelectedPlantIds([])
+    }
+  }
+
+  const togglePlantSelection = (plantId: string) => {
+    if (!isSelectionMode) {
+      setIsSelectionMode(true)
+    }
+    setSelectedPlantIds((prev) => {
+      if (prev.includes(plantId)) {
+        const newSelection = prev.filter((id) => id !== plantId)
+        if (newSelection.length === 0) {
+          setIsSelectionMode(false)
+        }
+        return newSelection
+      } else {
+        return [...prev, plantId]
+      }
+    })
+  }
+
+  const handleWaterPlants = () => {
+    // Water all selected plants
+    console.log("Watering plants:", selectedPlantIds)
+    // Add your watering logic here
+    setSelectedPlantIds([])
+    setIsSelectionMode(false)
+  }
+
+  const toggleActionSelection = (actionId: string) => {
+    setSelectedActionIds((prev) => {
+      if (prev.includes(actionId)) {
+        return prev.filter((id) => id !== actionId)
+      } else {
+        return [...prev, actionId]
+      }
+    })
+  }
+
+  const handleCompleteTasks = () => {
+    console.log(`Applying actions ${selectedActionIds.join(", ")} to plants:`, selectedPlantIds)
+    // Add your action logic here - apply all selected actions to all selected plants
+    setShowActions(false)
+    setSelectedActionIds([])
+    setSelectedPlantIds([])
+    setIsSelectionMode(false)
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Plants</Text>
-        <TouchableOpacity>
-          <Ionicons name="search-outline" size={24} color="#1a1a1a" />
-        </TouchableOpacity>
+        <Text style={styles.headerTitle}>
+          {isSelectionMode && selectedPlantIds.length > 0 ? `${selectedPlantIds.length} Selected` : "My Plants"}
+        </Text>
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            onPress={toggleSelectionMode}
+            style={styles.checkboxIconButton}
+          >
+            <MaterialCommunityIcons 
+              name={isSelectionMode ? "checkbox-marked" : "checkbox-blank-outline"} 
+              size={24} 
+              color={isSelectionMode ? "#4CAF50" : "#1a1a1a"} 
+            />
+          </TouchableOpacity>
+          <TouchableOpacity>
+            <MaterialCommunityIcons name="magnify" size={24} color="#1a1a1a" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Plant List */}
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {plants.map((plant) => (
-          <View key={plant.id} style={styles.plantCard}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: isSelectionMode && selectedPlantIds.length > 0 ? 80 : 0 }}
+      >
+        {plants.map((plant) => {
+          const isSelected = selectedPlantIds.includes(plant.id)
+          return (
             <TouchableOpacity
-              style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
-              onPress={() => router.push({ pathname: "/plantDetails", params: { id: plant.id } })}
+              key={plant.id}
+              style={[
+                styles.plantCard,
+                isSelected && styles.plantCardSelected
+              ]}
+              onPress={() => {
+                if (isSelectionMode) {
+                  togglePlantSelection(plant.id)
+                } else {
+                  router.push({ pathname: "/plantDetails", params: { id: plant.id } })
+                }
+              }}
+              onLongPress={() => {
+                togglePlantSelection(plant.id)
+              }}
               activeOpacity={0.8}
             >
-              <Image source={plant.image} style={styles.plantImage} />
-              <View style={styles.plantInfo}>
-                <Text style={styles.plantName}>{plant.name}</Text>
-                <View style={styles.statusRow}>
-                  <Ionicons name="checkbox-outline" size={16} color="#4CAF50" />
-                  <Text style={styles.plantMeta}>
-                    {plant.lastWatered} | {plant.status}
-                  </Text>
+              {isSelectionMode && (
+                <View style={styles.checkboxContainer}>
+                  <MaterialCommunityIcons
+                    name={isSelected ? "checkbox-marked" : "checkbox-blank-outline"}
+                    size={24}
+                    color={isSelected ? "#4CAF50" : "#ccc"}
+                  />
                 </View>
-                <View style={styles.statusRow}>
-                  <Ionicons name="notifications-outline" size={16} color={plant.statusColor} />
-                  <Text style={[styles.nextAction, { color: plant.statusColor }]}>
-                    {plant.nextAction}
-                  </Text>
+              )}
+              <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                <Image source={plant.image} style={styles.plantImage} />
+                <View style={styles.plantInfo}>
+                  <Text style={styles.plantName}>{plant.name}</Text>
+                  <View style={styles.statusRow}>
+                    <MaterialCommunityIcons name="checkbox-blank-outline" size={16} color="#4CAF50" />
+                    <Text style={styles.plantMeta}>
+                      {plant.lastWatered} | {plant.status}
+                    </Text>
+                  </View>
+                  <View style={styles.statusRow}>
+                    <MaterialCommunityIcons name="bell-outline" size={16} color={plant.statusColor} />
+                    <Text style={[styles.nextAction, { color: plant.statusColor }]}>
+                      {plant.nextAction}
+                    </Text>
+                  </View>
                 </View>
               </View>
             </TouchableOpacity>
-            <View style={styles.actionsRight}>
-              <TouchableOpacity
-                style={styles.moreBtn}
-                onPress={() => {
-                  setSelectedPlantId(plant.id)
-                  setShowActions(true)
-                }}
-                activeOpacity={0.9}
-              >
-                <Text style={styles.moreText}>More</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.primaryBtn} activeOpacity={0.9}>
-                <Text style={styles.primaryText}>Water</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ))}
+          )
+        })}
       </ScrollView>
 
+      {/* Bottom Action Bar - Shows when plants are selected in selection mode */}
+      {isSelectionMode && selectedPlantIds.length > 0 && (
+        <View style={[styles.bottomActionBar, { paddingBottom: insets.bottom }]}>
+          <TouchableOpacity
+            style={styles.bottomMoreBtn}
+            onPress={() => setShowActions(true)}
+            activeOpacity={0.9}
+          >
+            <Text style={styles.bottomMoreText}>More</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.bottomWaterBtn}
+            onPress={handleWaterPlants}
+            activeOpacity={0.9}
+          >
+            <Text style={styles.bottomWaterText}>Water</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Floating Action Button */}
-      <TouchableOpacity style={styles.fab} onPress={() => router.push("/addPlant")}>
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
+      {!isSelectionMode && (
+        <TouchableOpacity style={styles.fab} onPress={() => router.push("/addPlant")}>
+          <Text style={styles.fabText}>+</Text>
+        </TouchableOpacity>
+      )}
 
       {/* More Actions Modal */}
       <Modal
@@ -121,35 +223,39 @@ export default function MyPlants() {
         visible={showActions}
         onRequestClose={() => {
           setShowActions(false)
-          setSelectedActionId(null)
+          setSelectedActionIds([])
         }}
       >
-        <TouchableOpacity 
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => {
-            setShowActions(false)
-            setSelectedActionId(null)
-          }}
-        >
+        <View style={styles.modalOverlay}>
           <TouchableOpacity 
+            style={styles.modalOverlayTouchable}
             activeOpacity={1}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>More Actions</Text>
-                <TouchableOpacity onPress={() => {
-                  setShowActions(false)
-                  setSelectedActionId(null)
-                }}>
-                  <Ionicons name="close-outline" size={24} color="#999" />
-                </TouchableOpacity>
-              </View>
+            onPress={() => {
+              setShowActions(false)
+              setSelectedActionIds([])
+            }}
+          />
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                More Actions {selectedPlantIds.length > 0 && `(${selectedPlantIds.length} plants)`}
+              </Text>
+              <TouchableOpacity onPress={() => {
+                setShowActions(false)
+                setSelectedActionIds([])
+              }}>
+                <MaterialCommunityIcons name="close" size={24} color="#999" />
+              </TouchableOpacity>
+            </View>
 
+            <ScrollView 
+              style={styles.actionsScrollView}
+              contentContainerStyle={styles.actionsScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
               <View style={styles.actionsGrid}>
                 {actions.map((action) => {
-                  const isSelected = selectedActionId === action.id
+                  const isSelected = selectedActionIds.includes(action.id)
                   return (
                     <TouchableOpacity 
                       key={action.id} 
@@ -157,19 +263,12 @@ export default function MyPlants() {
                         styles.actionButton,
                         isSelected && styles.actionButtonSelected
                       ]} 
-                      onPress={() => {
-                        setSelectedActionId(action.id)
-                        // Close modal after a brief delay to show selection
-                        setTimeout(() => {
-                          setShowActions(false)
-                          setSelectedActionId(null)
-                        }, 300)
-                      }}
+                      onPress={() => toggleActionSelection(action.id)}
                     >
-                      <Ionicons 
+                      <MaterialCommunityIcons 
                         name={action.iconName as any} 
                         size={32} 
-                        color="#4CAF50" 
+                        color={isSelected ? "#fff" : "#4CAF50"} 
                         style={styles.actionIcon}
                       />
                       <Text style={[
@@ -182,9 +281,23 @@ export default function MyPlants() {
                   )
                 })}
               </View>
-            </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
+            </ScrollView>
+
+            {selectedActionIds.length > 0 && (
+              <View style={[styles.completeTasksContainer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+                <TouchableOpacity
+                  style={styles.completeTasksButton}
+                  onPress={handleCompleteTasks}
+                  activeOpacity={0.9}
+                >
+                  <Text style={styles.completeTasksText}>
+                    Complete Tasks ({selectedActionIds.length})
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
       </Modal>
     </View>
   )
@@ -199,156 +312,238 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingHorizontal: hs(20),
+    paddingVertical: vs(15),
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: ms(20),
     fontWeight: "700",
     color: "#1a1a1a",
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: hs(12),
+  },
+  checkboxIconButton: {
+    padding: ms(4),
+  },
+  clearButton: {
+    paddingHorizontal: hs(12),
+    paddingVertical: vs(6),
+  },
+  clearButtonText: {
+    fontSize: ms(14),
+    color: "#4CAF50",
+    fontWeight: "600",
   },
   plantCard: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginHorizontal: 15,
-    marginVertical: 10,
-    padding: 12,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
+    marginHorizontal: hs(15),
+    marginVertical: vs(10),
+    padding: ms(12),
+    borderBottomColor: "#F8F8F8",
+    borderBottomWidth: 1,
+    borderRadius: ms(12),
+  },
+  plantCardSelected: {
+    backgroundColor: "#F0F8F0",
+  },
+  checkboxContainer: {
+    marginRight: hs(12),
+    marginTop: vs(4),
   },
   plantImage: {
-    width: 80,
-    height: 120,
-    borderRadius: 12,
-    marginRight: 12,
+    width: hs(80),
+    height: vs(120),
+    borderRadius: ms(12),
+    marginRight: hs(12),
     resizeMode: "cover",
   },
   plantInfo: {
     flex: 1,
-    justifyContent: "space-between",
-    minHeight: 120,
+    minHeight: vs(120),
   },
   plantName: {
-    fontSize: 16,
+    fontSize: ms(16),
     fontWeight: "600",
     color: "#1a1a1a",
-    marginBottom: 8,
+    marginBottom: vs(10)
   },
   plantMeta: {
-    fontSize: 12,
+    fontSize: ms(12),
     color: "#999",
-    marginLeft: 6,
+    marginLeft: hs(6),
+
   },
   statusRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 6,
+    marginBottom: vs(10),
   },
   nextAction: {
-    fontSize: 12,
+    fontSize: ms(12),
     fontWeight: "500",
-    marginLeft: 6,
+    marginLeft: hs(6),
   },
   actionsRight: {
     flexDirection: "row",
     justifyContent: "flex-end",
     alignItems: "flex-end",
-    marginLeft: 8,
-    minHeight: 120,
-    paddingBottom: 4,
+    marginLeft: hs(8),
+    minHeight: vs(120),
+    paddingBottom: vs(4),
   },
   moreBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    paddingHorizontal: hs(14),
+    paddingVertical: vs(6),
     borderWidth: 1,
     borderColor: "#cfcfcf",
-    borderRadius: 18,
+    borderRadius: ms(18),
     backgroundColor: "#fff",
-    marginRight: 8,
+    marginRight: hs(8),
   },
   moreText: {
-    fontSize: 13,
+    fontSize: ms(13),
     color: "#1a1a1a",
     fontWeight: "600",
   },
   primaryBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 18,
+    paddingHorizontal: hs(16),
+    paddingVertical: vs(8),
+    borderRadius: ms(18),
     backgroundColor: "#4CAF50",
   },
   primaryText: {
     color: "#fff",
     fontWeight: "700",
   },
+  bottomActionBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    backgroundColor: "#fff",
+    paddingHorizontal: hs(20),
+    paddingTop: vs(15),
+    paddingBottom: vs(15),
+    borderTopWidth: 1,
+    borderTopColor: "#e0e0e0",
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: vs(-2) },
+    shadowOpacity: 0.1,
+    shadowRadius: ms(8),
+    gap: hs(12),
+  },
+  bottomMoreBtn: {
+    flex: 1,
+    paddingVertical: vs(14),
+    borderWidth: 1,
+    borderColor: "#cfcfcf",
+    borderRadius: ms(18),
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bottomMoreText: {
+    fontSize: ms(15),
+    color: "#1a1a1a",
+    fontWeight: "600",
+  },
+  bottomWaterBtn: {
+    flex: 1,
+    paddingVertical: vs(14),
+    borderRadius: ms(18),
+    backgroundColor: "#4CAF50",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bottomWaterText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: ms(15),
+  },
   fab: {
     position: "absolute",
-    bottom: 30,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    bottom: vs(30),
+    right: hs(20),
+    width: hs(56),
+    height: hs(56),
+    borderRadius: ms(28),
     backgroundColor: "#4CAF50",
     justifyContent: "center",
     alignItems: "center",
     elevation: 5,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: { width: 0, height: vs(3) },
     shadowOpacity: 0.2,
-    shadowRadius: 5,
+    shadowRadius: ms(5),
   },
   fabText: {
-    fontSize: 28,
+    fontSize: ms(28),
     color: "#fff",
     fontWeight: "300",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.3)",
     justifyContent: "flex-end",
+  },
+  modalOverlayTouchable: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
   },
   modalContent: {
     backgroundColor: "#fff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 20,
-    paddingBottom: 30,
+    borderTopLeftRadius: ms(20),
+    borderTopRightRadius: ms(20),
+    paddingTop: vs(20),
+    paddingBottom: vs(20),
+    maxHeight: "85%",
     elevation: 8,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
+    shadowOffset: { width: 0, height: vs(-2) },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowRadius: ms(8),
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    marginBottom: 20,
+    paddingHorizontal: hs(20),
+    marginBottom: vs(20),
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: ms(18),
     fontWeight: "700",
     color: "#1a1a1a",
+  },
+  actionsScrollView: {
+    flexGrow: 0,
+    flexShrink: 1,
+  },
+  actionsScrollContent: {
+    paddingBottom: vs(10),
   },
   actionsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    paddingHorizontal: 15,
+    paddingHorizontal: hs(15),
     justifyContent: "space-between",
   },
   actionButton: {
     width: "48%",
     aspectRatio: 1,
-    marginBottom: 12,
+    marginBottom: vs(12),
     borderWidth: 1,
     borderColor: "#ddd",
-    borderRadius: 12,
+    borderRadius: ms(12),
     backgroundColor: "#fff",
     justifyContent: "center",
     alignItems: "center",
@@ -358,14 +553,34 @@ const styles = StyleSheet.create({
     borderColor: "#4CAF50",
   },
   actionIcon: {
-    marginBottom: 8,
+    marginBottom: vs(8),
   },
   actionLabel: {
-    fontSize: 14,
+    fontSize: ms(14),
     fontWeight: "600",
     color: "#1a1a1a",
   },
   actionLabelSelected: {
     color: "#fff",
+  },
+  completeTasksContainer: {
+    paddingHorizontal: hs(20),
+    paddingTop: vs(15),
+    paddingBottom: vs(10),
+    borderTopWidth: 1,
+    borderTopColor: "#e0e0e0",
+    backgroundColor: "#fff",
+  },
+  completeTasksButton: {
+    backgroundColor: "#4CAF50",
+    borderRadius: ms(18),
+    paddingVertical: vs(16),
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  completeTasksText: {
+    color: "#fff",
+    fontSize: ms(16),
+    fontWeight: "700",
   },
 })

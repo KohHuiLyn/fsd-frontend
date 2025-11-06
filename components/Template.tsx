@@ -1,20 +1,59 @@
 import { horizontalScale as hs, scaleFont, verticalScale as vs } from "@/utils/scale"
-import { Ionicons } from "@expo/vector-icons"
-import React, { useRef } from "react"
-import { Animated, Image, ScrollView, StyleSheet, Text, View, type ImageSourcePropType } from "react-native"
+import { MaterialCommunityIcons } from "@expo/vector-icons"
+import React, { useRef, useState, useEffect } from "react"
+import { Animated, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, StatusBar, type ImageSourcePropType } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
+import ImageViewing from "react-native-image-viewing"
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window")
 
 type TemplateProps = {
 	title?: string
 	image?: ImageSourcePropType
+	images?: ImageSourcePropType[]
 	imageHeader?: boolean
 	onPressBack?: () => void
 	onPressSettings?: () => void
 	children?: React.ReactNode
 }
 
-export default function Template({ title, image, imageHeader, onPressBack, onPressSettings, children }: TemplateProps) {
+export default function Template({ title, image, images, imageHeader, onPressBack, onPressSettings, children }: TemplateProps) {
   const insets = useSafeAreaInsets()
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const imageScrollRef = useRef<ScrollView>(null)
+  const [imageViewerVisible, setImageViewerVisible] = useState(false)
+
+  // Use images array if provided, otherwise fall back to single image
+  const imageList = images || (image ? [image] : [])
+  const hasMultipleImages = imageList.length > 1
+
+  const openImageViewer = () => {
+    setImageViewerVisible(true)
+  }
+
+  const handleImageViewerClose = () => {
+    setImageViewerVisible(false)
+  }
+
+  // Hide status bar when image viewer is open
+  useEffect(() => {
+    if (imageViewerVisible) {
+      StatusBar.setHidden(true, 'fade')
+    } else {
+      StatusBar.setHidden(false, 'fade')
+    }
+    return () => {
+      StatusBar.setHidden(false, 'fade')
+    }
+  }, [imageViewerVisible])
+
+  const handleImageScroll = (event: any) => {
+    const scrollPosition = event.nativeEvent.contentOffset.x
+    const index = Math.round(scrollPosition / SCREEN_WIDTH)
+    if (index !== currentImageIndex) {
+      setCurrentImageIndex(index)
+    }
+  }
 
   if (imageHeader) {
     const HEADER_EXPANDED_HEIGHT = vs(280)
@@ -61,39 +100,117 @@ export default function Template({ title, image, imageHeader, onPressBack, onPre
     return (
       <View style={{ flex: 1, backgroundColor: "#fff" }}>
         <Animated.View style={[styles.animatedHeader, { height: headerHeight }]}> 
-          {image ? (
-            <Animated.Image source={image} resizeMode="cover" style={[styles.headerImageAbsolute, { opacity: imageOpacity }]} />
-          ) : null}
+          {imageList.length > 0 && (
+            hasMultipleImages ? (
+              <View style={{ flex: 1 }}>
+                <ScrollView
+                  ref={imageScrollRef}
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onMomentumScrollEnd={handleImageScroll}
+                  scrollEventThrottle={16}
+                  style={styles.imageScrollView}
+                  contentContainerStyle={styles.imageScrollContent}
+                >
+                  {imageList.map((img, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      activeOpacity={1}
+                      onPress={openImageViewer}
+                      style={{ width: SCREEN_WIDTH, height: "100%" }}
+                    >
+                      <Animated.Image 
+                        source={img} 
+                        resizeMode="cover" 
+                        style={[styles.headerImagePage, { opacity: imageOpacity }]} 
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : (
+              <TouchableOpacity 
+                activeOpacity={1}
+                onPress={openImageViewer}
+                style={{ flex: 1 }}
+              >
+                <Animated.Image 
+                  source={imageList[0]} 
+                  resizeMode="cover" 
+                  style={[styles.headerImageAbsolute, { opacity: imageOpacity }]} 
+                />
+              </TouchableOpacity>
+            )
+          )}
+          
+          {/* Floating Controls on Top of Image */}
           <View style={[styles.topControls, { paddingTop: insets.top + vs(8) }]}>
             <View style={styles.iconContainer}>
               <Animated.View style={[styles.iconButton, { opacity: iconBgOpacity }]} />
               <View style={styles.iconSlot}>
                 <Animated.View style={[styles.iconOverlay, { opacity: whiteIconOpacity }]}>
-                  <Ionicons name="chevron-back" size={24} color="#fff" onPress={onPressBack} />
+                  <TouchableOpacity onPress={onPressBack}>
+                    <MaterialCommunityIcons name="chevron-left" size={24} color="#fff" />
+                  </TouchableOpacity>
                 </Animated.View>
                 <Animated.View style={[styles.iconOverlay, { opacity: blackIconOpacity }]}>
-                  <Ionicons name="chevron-back" size={24} color="#000" onPress={onPressBack} />
+                  <TouchableOpacity onPress={onPressBack}>
+                    <MaterialCommunityIcons name="chevron-left" size={24} color="#000" />
+                  </TouchableOpacity>
                 </Animated.View>
               </View>
             </View>
 
-            <View style={styles.iconContainer}>
-              <Animated.View style={[styles.iconButton, { opacity: iconBgOpacity }]} />
-              <View style={styles.iconSlot}>
-                <Animated.View style={[styles.iconOverlay, { opacity: whiteIconOpacity }]}>
-                  <Ionicons name="settings-outline" size={24} color="#fff" onPress={onPressSettings} />
-                </Animated.View>
-                <Animated.View style={[styles.iconOverlay, { opacity: blackIconOpacity }]}>
-                  <Ionicons name="settings-outline" size={24} color="#000" onPress={onPressSettings} />
-                </Animated.View>
+            {onPressSettings && (
+              <View style={styles.iconContainer}>
+                <Animated.View style={[styles.iconButton, { opacity: iconBgOpacity }]} />
+                <View style={styles.iconSlot}>
+                  <Animated.View style={[styles.iconOverlay, { opacity: whiteIconOpacity }]}>
+                    <TouchableOpacity onPress={onPressSettings}>
+                      <MaterialCommunityIcons name="cog" size={24} color="#fff" />
+                    </TouchableOpacity>
+                  </Animated.View>
+                  <Animated.View style={[styles.iconOverlay, { opacity: blackIconOpacity }]}>
+                    <TouchableOpacity onPress={onPressSettings}>
+                      <MaterialCommunityIcons name="cog" size={24} color="#000" />
+                    </TouchableOpacity>
+                  </Animated.View>
+                </View>
               </View>
-            </View>
+            )}
           </View>
           <Animated.View style={[styles.compactTitleBar, { opacity: titleOpacity }]}> 
             {title ? <Text style={styles.compactTitle}>{title}</Text> : null}
           </Animated.View>
+          
+          {/* Image Carousel Indicators */}
+          {hasMultipleImages && (
+            <View style={styles.carouselIndicators}>
+              {imageList.map((_, index) => (
+                <TouchableOpacity
+                  key={index}
+                  onPress={() => {
+                    setCurrentImageIndex(index)
+                    imageScrollRef.current?.scrollTo({
+                      x: index * SCREEN_WIDTH,
+                      animated: true,
+                    })
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View
+                    style={[
+                      styles.indicator,
+                      currentImageIndex === index && styles.indicatorActive,
+                    ]}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </Animated.View>
-        <Animated.ScrollView
+          <Animated.ScrollView
           scrollEventThrottle={16}
           contentContainerStyle={{ paddingTop: HEADER_EXPANDED_HEIGHT, paddingBottom: vs(24) }}
           onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
@@ -101,6 +218,22 @@ export default function Template({ title, image, imageHeader, onPressBack, onPre
         >
           <View style={styles.content}>{children}</View>
         </Animated.ScrollView>
+        
+        {/* Image Viewer */}
+        <ImageViewing
+          images={imageList.map(img => {
+            if (typeof img === 'number') {
+              const resolved = Image.resolveAssetSource(img)
+              return { uri: resolved.uri }
+            }
+            return { uri: (img as any).uri || '' }
+          })}
+          imageIndex={currentImageIndex}
+          visible={imageViewerVisible}
+          onRequestClose={handleImageViewerClose}
+          presentationStyle="overFullScreen"
+          animationType="fade"
+        />
       </View>
     )
   }
@@ -154,11 +287,32 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
+  imageScrollView: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: "100%",
+    height: "100%",
+  },
+  imageScrollContent: {
+    flexDirection: "row",
+  },
+  headerImagePage: {
+    width: SCREEN_WIDTH,
+    height: "100%",
+  },
   topControls: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: hs(16),
+    zIndex: 10,
   },
   iconContainer: {
     position: "relative",
@@ -197,21 +351,39 @@ const styles = StyleSheet.create({
     margin:'auto'
   },
   compactTitle: {
-    fontSize: scaleFont(22),
+    fontSize: scaleFont(18),
     fontWeight: "700",
     color: "black",
-    textShadowColor: "rgba(0,0,0,0.35)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
     alignSelf:'center'
   },
   content: {
-    padding: hs(20),
+    padding: hs(0),
   },
   iconButton: {
     backgroundColor: "rgba(0,0,0,0.35)",
     padding: hs(20),
     borderRadius: hs(20),
   },
-  
+  carouselIndicators: {
+    position: "absolute",
+    bottom: vs(20),
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+  },
+  indicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
+  },
+  indicatorActive: {
+    backgroundColor: "#fff",
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
 })

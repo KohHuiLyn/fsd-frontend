@@ -70,6 +70,25 @@ function RootLayoutNav() {
             headerShown: false
           }}
         />
+        <Stack.Screen
+          name="diagnosisCamera"
+          options={{
+            headerShown: false
+          }}
+        />
+        {/* 📖 Plant Pedia Details Screen */}
+        <Stack.Screen
+          name="plantPediaDetails"
+          options={{
+            headerShown: false
+          }}
+        />
+          <Stack.Screen
+          name="diagnosisResult"
+          options={{
+            headerShown: false
+          }}
+        />
       </Stack>
     </ThemeProvider>
     </SafeAreaProvider>
