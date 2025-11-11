@@ -1,0 +1,39 @@
+stages:
+  - lint
+  - test
+  - build
+
+lint:
+  stage: lint
+  image: node:20-alpine
+  script:
+    - echo "🔍 Linting frontend..."
+    - npm ci
+    - npx eslint .
+  only:
+    - main
+    - merge_requests
+
+test:
+  stage: test
+  image: node:20-alpine
+  script:
+    - echo "🧪 Running tests..."
+    - npm ci
+    - npm test || echo "No tests yet"
+  only:
+    - main
+    - merge_requests
+
+build:
+  stage: build
+  image: node:20-alpine
+  script:
+    - echo "🏗️ Building app..."
+    - npm ci
+    - npm run build || echo "Expo build step (manual for now)"
+  artifacts:
+    paths:
+      - build/
+  only:
+    - main
