@@ -8,6 +8,7 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { AuthProvider } from '@/contexts/AuthContext';
 
 export {
     // Catch any errors thrown by the Layout component.
@@ -16,7 +17,7 @@ export {
 
 export const unstable_settings = {
   // Ensure that reloading on `/modal` keeps a back button present.
-  initialRouteName: '(tabs)',
+  initialRouteName: 'index',
 };
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -43,7 +44,11 @@ export default function RootLayout() {
     return null;
   }
 
-  return <RootLayoutNav />;
+  return (
+    <AuthProvider>
+      <RootLayoutNav />
+    </AuthProvider>
+  );
 }
 
 function RootLayoutNav() {
@@ -51,53 +56,55 @@ function RootLayoutNav() {
 
   return (
     <SafeAreaProvider>
-
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-        {/* 🪴 Plant Details Screen */}
-        <Stack.Screen
-          name="plantDetails"
-          options={{
-            headerShown: false
-          }}
-        />
-        {/* 🌱 Add Plant Screen */}
-        <Stack.Screen
-          name="addPlant"
-          options={{
-            headerShown: false
-          }}
-        />
-        <Stack.Screen
-          name="diagnosisCamera"
-          options={{
-            headerShown: false
-          }}
-        />
-        {/* 📖 Plant Pedia Details Screen */}
-        <Stack.Screen
-          name="plantPediaDetails"
-          options={{
-            headerShown: false
-          }}
-        />
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen name="login" options={{ headerShown: false }} />
+          <Stack.Screen name="register" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+          {/* 🪴 Plant Details Screen */}
           <Stack.Screen
-          name="diagnosisResult"
-          options={{
-            headerShown: false
-          }}
-        />
-        {/* 🔍 Search Screen */}
-        <Stack.Screen
-          name="search"
-          options={{
-            headerShown: false
-          }}
-        />
-      </Stack>
-    </ThemeProvider>
+            name="plantDetails"
+            options={{
+              headerShown: false
+            }}
+          />
+          {/* 🌱 Add Plant Screen */}
+          <Stack.Screen
+            name="addPlant"
+            options={{
+              headerShown: false
+            }}
+          />
+          <Stack.Screen
+            name="diagnosisCamera"
+            options={{
+              headerShown: false
+            }}
+          />
+          {/* 📖 Plant Pedia Details Screen */}
+          <Stack.Screen
+            name="plantPediaDetails"
+            options={{
+              headerShown: false
+            }}
+          />
+          <Stack.Screen
+            name="diagnosisResult"
+            options={{
+              headerShown: false
+            }}
+          />
+          {/* 🔍 Search Screen */}
+          <Stack.Screen
+            name="search"
+            options={{
+              headerShown: false
+            }}
+          />
+        </Stack>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

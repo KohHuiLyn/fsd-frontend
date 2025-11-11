@@ -4,19 +4,46 @@ import { horizontalScale as hs, moderateScale as ms, verticalScale as vs } from 
 import { MaterialCommunityIcons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
 import { useState } from "react"
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native"
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import JournalCard, { type JournalEntry } from "@/components/JournalCard"
 import ImageViewing from "react-native-image-viewing"
 import { type ImageSourcePropType } from "react-native"
+import { useAuth } from "@/contexts/AuthContext"
 
 export default function Profile() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const { user, logout } = useAuth()
   const [activeTab, setActiveTab] = useState<"journal" | "bookmarks" | "gallery">("journal")
   const [imageViewerVisible, setImageViewerVisible] = useState(false)
   const [imageViewerIndex, setImageViewerIndex] = useState(0)
   const [currentEntryImages, setCurrentEntryImages] = useState<ImageSourcePropType[]>([])
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await logout()
+              router.replace("/login")
+            } catch (error) {
+              Alert.alert("Error", "Failed to logout")
+            }
+          }
+        }
+      ]
+    )
+  }
 
   // Mock data - all journal entries from all plants
   const allJournalEntries: JournalEntry[] = [
@@ -118,10 +145,13 @@ export default function Profile() {
             source={require("../../assets/call-duck-royalty-free-image-1732105274.jpg")} 
             style={styles.profileImage}
           />
-          <Text style={styles.username}>RodanGoose</Text>
+          <Text style={styles.username}>{user?.username || user?.name || user?.email || "User"}</Text>
+          {user?.email && (
+            <Text style={styles.email}>{user.email}</Text>
+          )}
         </View>
-        <TouchableOpacity style={styles.menuButton}>
-          <MaterialCommunityIcons name="menu" size={24} color="#1a1a1a" />
+        <TouchableOpacity style={styles.menuButton} onPress={handleLogout}>
+          <MaterialCommunityIcons name="logout" size={24} color="#1a1a1a" />
         </TouchableOpacity>
       </View>
 
@@ -209,6 +239,11 @@ const styles = StyleSheet.create({
     fontSize: ms(20),
     fontWeight: "700",
     color: "#1a1a1a",
+  },
+  email: {
+    fontSize: ms(14),
+    color: "#666",
+    marginTop: vs(4),
   },
   menuButton: {
     padding: ms(4),
