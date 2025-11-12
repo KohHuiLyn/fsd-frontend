@@ -1,4 +1,4 @@
-import { loginUser, logoutUser, registerUser } from '@/services/userService';
+import { loginUser, registerUser } from '@/services/userService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, ReactNode, useEffect, useState } from 'react';
 
@@ -142,8 +142,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      // Call logout service (handles API call and token removal)
-      await logoutUser();
 
       // Clear user from storage
       await AsyncStorage.removeItem(STORAGE_KEY);

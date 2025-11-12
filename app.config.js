@@ -37,9 +37,6 @@ module.exports = {
     experiments: {
       typedRoutes: true
     },
-    extra: {
-      LOGIN_URL: process.env.LOGIN_URL || "http://localhost:3000",
-    },
   },
 };
 

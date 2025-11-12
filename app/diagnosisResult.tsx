@@ -1,11 +1,13 @@
 "use client"
 
 import Template from "@/components/Template"
+import { diagnosePlant } from "@/services/plantDoctorService"
 import { horizontalScale as hs, moderateScale as ms, verticalScale as vs } from "@/utils/scale"
 import { MaterialCommunityIcons } from "@expo/vector-icons"
+import * as ImageManipulator from "expo-image-manipulator"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useEffect, useState } from "react"
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native"
+import { ActivityIndicator, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 export default function DiagnosisResult() {
@@ -13,6 +15,16 @@ export default function DiagnosisResult() {
   const params = useLocalSearchParams()
   const insets = useSafeAreaInsets()
   const imageUri = params.imageUri as string
+  const [preparedImageUri, setPreparedImageUri] = useState<string | null>(null)
+
+  // Debug: Log image URI to verify it's being passed correctly
+  useEffect(() => {
+    if (imageUri) {
+      console.log('Image URI received:', imageUri)
+    } else {
+      console.warn('No image URI found in params')
+    }
+  }, [imageUri])
 
   const [isLoading, setIsLoading] = useState(true)
   const [diagnosis, setDiagnosis] = useState<{
@@ -22,57 +34,63 @@ export default function DiagnosisResult() {
     confidence: number
     description: string
     metrics?: { height: string; water: string; light: string; humidity: string }
-    diseaseImages?: string[]
+    diseaseImages?: (string | number)[]
     symptoms?: string
+    careSteps?: string[]
+    preventionTips?: string[]
   } | null>(null)
 
   useEffect(() => {
-    // Simulate diagnosis API call
-    const diagnosePlant = async () => {
+    let isActive = true
+
+    const prepareAndDiagnose = async () => {
+      if (!imageUri) return
+
       setIsLoading(true)
-      
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 3000))
 
-      // Randomly determine if plant is healthy or sick (for demo)
-      const isHealthy = Math.random() > 0.5
-      
-      if (isHealthy) {
-        setDiagnosis({
-          isHealthy: true,
-          plantName: "Mint",
-          confidence: 92,
-          description: "Papaver somniferum, commonly known as the opium poppy or breadseed poppy, is a species of flowering plant in the family Papaveraceae. It is the species of plant from which both opium and poppy seeds are derived and is a valuable ornamental plant, grown in gardens...",
-          metrics: {
-            height: "Small",
-            water: "333ml",
-            light: "Normal",
-            humidity: "56%",
-          },
-        })
-      } else {
-        setDiagnosis({
-          isHealthy: false,
-          plantName: "Mint Rust",
-          diseaseName: "Disease of Mint",
-          confidence: 81,
-          description: "Papaver somniferum, commonly known as the opium poppy or breadseed poppy, is a species of flowering plant in the family Papaveraceae. It is the species of plant from which both opium and poppy seeds are derived and is a valuable ornamental plant, grown in gardens...",
-          diseaseImages: [
-            require("../assets/images/dummy/chilli_padi.jpg"),
-            require("../assets/images/dummy/chilli_padi.jpg"),
-            require("../assets/images/dummy/chilli_padi.jpg"),
-          ],
-          symptoms: "Rust spots appear on leaves, starting as small orange or brown spots that gradually spread. The leaves may turn yellow and fall off prematurely. The disease is caused by a fungal infection and can spread quickly in humid conditions.",
-        })
+      try {
+        let workingUri = imageUri
+
+        const needsConversion =
+          Platform.OS !== "web" &&
+          (!imageUri || !/\.(jpe?g|png|webp)$/i.test(imageUri.split("?")[0] || ""))
+
+        if (needsConversion) {
+          const manipulated = await ImageManipulator.manipulateAsync(
+            imageUri,
+            [],
+            { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG }
+          )
+          if (!isActive) return
+          workingUri = manipulated.uri
+        } else if (isActive) {
+          setPreparedImageUri(imageUri)
+        }
+
+        if (isActive) {
+          setPreparedImageUri(workingUri)
+        }
+
+        const result = await diagnosePlant(workingUri)
+        if (!isActive) return
+        setDiagnosis(result)
+      } catch (error: any) {
+        if (!isActive) return
+        console.error('Error diagnosing plant:', error)
+
+      } finally {
+        if (isActive) {
+          setIsLoading(false)
+        }
       }
-
-      setIsLoading(false)
     }
 
-    if (imageUri) {
-      diagnosePlant()
+    prepareAndDiagnose()
+
+    return () => {
+      isActive = false
     }
-  }, [imageUri])
+  }, [imageUri, router])
 
   if (isLoading) {
     return (
@@ -93,10 +111,9 @@ export default function DiagnosisResult() {
   return (
     <Template
       title={diagnosis.plantName}
-      image={{ uri: imageUri }}
+      image={{ uri: (preparedImageUri || imageUri)! }}
       imageHeader
       onPressBack={() => router.back()}
-      onPressSettings={() => {}}
     >
       <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollView}>
         <View style={styles.content}>
@@ -125,8 +142,8 @@ export default function DiagnosisResult() {
             </View>
             <Text style={styles.healthMessage}>
               {diagnosis.isHealthy
-                ? "HORRAY! YOUR PLANT LOOKS HEALTHY!"
-                : "YOUR PLANT IS DYING LMAOOOOOOOO"}
+                ? "Your plant is healthy!"
+                : "Your plant is unwell!"}
             </Text>
             <Text style={styles.disclaimer}>
               The plant was diagnosed automatically. Contact our botany experts to be sure about results.
@@ -140,13 +157,35 @@ export default function DiagnosisResult() {
 
           {/* Description */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Description</Text>
-            <Text style={styles.sourceText}>From Wikipedia, the free encyclopedia</Text>
+            <Text style={styles.sectionTitle}>Condition Summary</Text>
             <Text style={styles.descriptionText}>{diagnosis.description}</Text>
-            <TouchableOpacity>
-              <Text style={styles.readMore}>Read more</Text>
-            </TouchableOpacity>
           </View>
+
+          {/* Care Steps */}
+          {diagnosis.careSteps && diagnosis.careSteps.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Recommended Care Steps</Text>
+              {diagnosis.careSteps.map((step, index) => (
+                <View key={index} style={styles.listItem}>
+                  <MaterialCommunityIcons name="checkbox-marked-circle-outline" size={20} color="#4CAF50" />
+                  <Text style={styles.listText}>{step}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Prevention Tips */}
+          {diagnosis.preventionTips && diagnosis.preventionTips.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Prevention Tips</Text>
+              {diagnosis.preventionTips.map((tip, index) => (
+                <View key={index} style={styles.listItem}>
+                  <MaterialCommunityIcons name="shield-check" size={20} color="#4CAF50" />
+                  <Text style={styles.listText}>{tip}</Text>
+                </View>
+              ))}
+            </View>
+          )}
 
           {/* Plant Metrics (if healthy) */}
           {diagnosis.isHealthy && diagnosis.metrics && (
@@ -177,13 +216,17 @@ export default function DiagnosisResult() {
           )}
 
           {/* Disease Images (if sick) */}
-          {!diagnosis.isHealthy && diagnosis.diseaseImages && (
+          {!diagnosis.isHealthy && diagnosis.diseaseImages && diagnosis.diseaseImages.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Disease Images</Text>
               <View style={styles.diseaseImagesContainer}>
                 {diagnosis.diseaseImages.map((img, index) => (
                   <View key={index} style={styles.diseaseImageWrapper}>
-                    <Image source={img} style={styles.diseaseImage} resizeMode="cover" />
+                    <Image 
+                      source={typeof img === 'string' ? { uri: img } : img} 
+                      style={styles.diseaseImage} 
+                      resizeMode="cover" 
+                    />
                     <Text style={styles.diseaseImageLabel}>{diagnosis.plantName}</Text>
                   </View>
                 ))}
@@ -306,21 +349,23 @@ const styles = StyleSheet.create({
     color: "#1a1a1a",
     marginBottom: vs(8),
   },
-  sourceText: {
-    fontSize: ms(12),
-    color: "#999",
-    marginBottom: vs(8),
-  },
   descriptionText: {
     fontSize: ms(14),
     color: "#333",
     lineHeight: ms(20),
     marginBottom: vs(8),
   },
-  readMore: {
+  listItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: hs(12),
+    marginBottom: vs(12),
+  },
+  listText: {
+    flex: 1,
     fontSize: ms(14),
-    fontWeight: "600",
-    color: "#4CAF50",
+    color: "#333",
+    lineHeight: ms(20),
   },
   metricsGrid: {
     flexDirection: "row",

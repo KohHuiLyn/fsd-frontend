@@ -1,15 +1,14 @@
 "use client"
 
+import JournalCard, { type JournalEntry } from "@/components/JournalCard"
+import { useAuth } from "@/contexts/AuthContext"
 import { horizontalScale as hs, moderateScale as ms, verticalScale as vs } from "@/utils/scale"
 import { MaterialCommunityIcons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
 import { useState } from "react"
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert } from "react-native"
-import { useSafeAreaInsets } from "react-native-safe-area-context"
-import JournalCard, { type JournalEntry } from "@/components/JournalCard"
+import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, type ImageSourcePropType } from "react-native"
 import ImageViewing from "react-native-image-viewing"
-import { type ImageSourcePropType } from "react-native"
-import { useAuth } from "@/contexts/AuthContext"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 export default function Profile() {
   const router = useRouter()
@@ -140,20 +139,27 @@ export default function Profile() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-        <View style={styles.profileSection}>
-          <Image 
-            source={require("../../assets/call-duck-royalty-free-image-1732105274.jpg")} 
-            style={styles.profileImage}
-          />
-          <Text style={styles.username}>{user?.username || user?.name || user?.email || "User"}</Text>
-          {user?.email && (
-            <Text style={styles.email}>{user.email}</Text>
-          )}
-        </View>
-        <TouchableOpacity style={styles.menuButton} onPress={handleLogout}>
-          <MaterialCommunityIcons name="logout" size={24} color="#1a1a1a" />
-        </TouchableOpacity>
-      </View>
+  {/* Profile content centered */}
+  <View style={styles.profileSection}>
+    <Image 
+      source={require("../../assets/call-duck-royalty-free-image-1732105274.jpg")} 
+      style={styles.profileImage}
+    />
+    <Text style={styles.username}>{user?.username || user?.name || user?.email || "User"}</Text>
+    {user?.email && (
+      <Text style={styles.email}>{user.email}</Text>
+    )}
+  </View>
+
+  {/* Absolute-positioned hamburger menu */}
+  <TouchableOpacity
+    style={styles.menuButton}
+    onPress={() => router.push("/settings")}
+  >
+    <MaterialCommunityIcons name="menu" size={28} color="#1a1a1a" />
+  </TouchableOpacity>
+</View>
+
 
       {/* Tabs */}
       <View style={styles.tabsWrapper}>
@@ -218,19 +224,30 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: hs(20),
-    paddingVertical: vs(20),
+    justifyContent: "center",
+    paddingTop: vs(20),
+    paddingBottom: vs(30),
+    position: "relative",
+    minHeight: vs(160), // 👈 ensures enough space for the profile image + name
   },
+  
+  menuButton: {
+    position: "absolute",
+    top: vs(20),
+    right: hs(20),
+    padding: ms(8),
+    zIndex: 10,
+  },
+  
   profileSection: {
     alignItems: "center",
-    flex: 1,
+    justifyContent: "center",
   },
+  
   profileImage: {
     width: hs(80),
-    height: vs(80),
+    height: hs(80),
     borderRadius: ms(40),
     marginBottom: vs(12),
     resizeMode: "cover",
@@ -244,9 +261,6 @@ const styles = StyleSheet.create({
     fontSize: ms(14),
     color: "#666",
     marginTop: vs(4),
-  },
-  menuButton: {
-    padding: ms(4),
   },
   tabsWrapper: {
     marginHorizontal: -hs(20),
@@ -281,9 +295,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: -hs(20),
     backgroundColor: "#F5F5F5",
-    paddingTop: vs(20),
     paddingHorizontal: hs(20),
-    paddingBottom: vs(20),
   },
   scrollContent: {
     paddingBottom: vs(100),
