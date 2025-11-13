@@ -102,36 +102,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
         role,
       });
-
-      // Validate response structure
-      if (!response || !response.user) {
+  
+      // ✅ Expect token instead of user
+      if (!response || !response.token) {
         console.error('Invalid registration response:', response);
-        throw new Error('Invalid response from registration API');
+        throw new Error('Invalid response format from registration API');
       }
-
-      // Use 'any' type to handle flexible API response structures
-      const apiUser: any = response.user;
-
-      // Convert API user to app user format with safe property access
-      // Handle both 'id' and '_id' (MongoDB uses _id)
-      const userId = apiUser?.id || apiUser?._id || '';
-      
+  
+      // Decode token or just save it
+      await AsyncStorage.setItem('@plantpal_token', response.token);
+  
+      // Optionally decode JWT to extract info
+      const decoded: any = JSON.parse(atob(response.token.split('.')[1]));
       const userData: User = {
-        id: userId,
-        email: apiUser?.email || '',
-        username: apiUser?.username,
-        name: apiUser?.name || apiUser?.username || apiUser?.email,
-        phoneNumber: apiUser?.phoneNumber,
-        role: apiUser?.role,
+        id: decoded.id,
+        email: decoded.email,
+        role: decoded.role,
       };
-
-      // Validate required fields
-      if (!userData.id || !userData.email) {
-        console.error('Missing required user fields. Received:', apiUser);
-        throw new Error('Invalid user data received from registration API');
-      }
-
-      // Save user to storage
+  
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
       setUser(userData);
     } catch (error: any) {
@@ -139,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw error;
     }
   };
+  
 
   const logout = async () => {
     try {

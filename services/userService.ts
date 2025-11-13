@@ -1,9 +1,13 @@
-import { createApiClient, getStoredToken, removeStoredToken, setStoredToken } from './apiClient';
+import { jwtDecode } from 'jwt-decode';
+import { ImageSourcePropType } from 'react-native';
+import { createApiClient, setStoredToken } from './apiClient';
 
-// Create API client instance for user service
-const apiClient = createApiClient('LOGIN_URL', 'http://localhost:3000');
+const apiClient = createApiClient();
+const defaultProfileImage = require('../assets/images/profile_pic.png') as ImageSourcePropType;
 
-// API Response Types
+/* ──────────────────────────────
+ *  Types
+ * ────────────────────────────── */
 export interface LoginRequest {
   email: string;
   password: string;
@@ -18,23 +22,25 @@ export interface RegisterRequest {
 }
 
 export interface User {
-  id?: string;
-  _id?: string; // Some APIs (e.g., MongoDB) use _id instead of id
+  id: string;
   email: string;
   username?: string;
-  name?: string;
   phoneNumber?: string;
   role?: string;
+  createdAt?: string;
+  profilePicture?: ImageSourcePropType;
 }
 
 export interface LoginResponse {
+  message?: string;
+  token: string;
   user: User;
-  token?: string;
 }
 
 export interface RegisterResponse {
+  message?: string;
+  token: string;
   user: User;
-  token?: string;
 }
 
 export interface ApiError {
@@ -42,98 +48,157 @@ export interface ApiError {
   error?: string;
 }
 
-// Re-export token management functions for convenience
-export { getStoredToken, removeStoredToken, setStoredToken };
+export interface UserProfile extends User {
+  deletedAt?: string | null;
+}
 
-// User Service API Methods
+/* ──────────────────────────────
+ *  Helpers
+ * ────────────────────────────── */
+function resolveProfileImageSource(profilePicture?: string | null): ImageSourcePropType {
+  if (typeof profilePicture === 'string') {
+    const trimmed = profilePicture.trim();
+    if (trimmed.length > 0) {
+      return { uri: trimmed };
+    }
+  }
+  return defaultProfileImage;
+}
 
-/**
- * Login user
- * POST {LOGIN_URL}/auth/login
- * Body: { email: string, password: string }
- */
+/* ──────────────────────────────
+ *  LOGIN
+ * ────────────────────────────── */
 export async function loginUser(credentials: LoginRequest): Promise<LoginResponse> {
-  const response = await apiClient.post<any>('/auth/login', credentials);
+  const response = await apiClient.post<any>('/login/auth/login', credentials);
 
   if (__DEV__) {
     console.log('Login API Response:', JSON.stringify(response, null, 2));
   }
 
-  // Handle different response structures
-  let loginResponse: LoginResponse;
+  if (!response || !response.token) {
+    console.error('Unexpected login response:', response);
+    throw new Error('Invalid login response format');
+  }
 
-  if (response.user) {
-    // Standard structure: { user: {...}, token: "..." }
-    loginResponse = response as LoginResponse;
-  } else if (response.id || response.email) {
-    // User returned directly: { id: "...", email: "...", ... }
-    loginResponse = {
-      user: response as User,
-      token: response.token,
+  const token: string = response.token;
+  let user: User | undefined = response.user;
+
+  if (!user) {
+    const payload = decodeJwtPayload(token);
+    if (!payload?.id || !payload?.email) {
+      console.error('Unable to derive user from login token:', payload);
+      throw new Error('Invalid login response format');
+    }
+
+    user = {
+      id: payload.id,
+      email: payload.email,
+      role: payload.role,
     };
-  } else {
-    // Unknown structure
-    console.error('Unexpected API response structure:', response);
-    throw new Error('Invalid response format from login API');
   }
 
-  // Store token if provided
-  if (loginResponse.token) {
-    await setStoredToken(loginResponse.token);
-  }
+  await setStoredToken(token);
 
-  return loginResponse;
+  return {
+    message: response.message,
+    token,
+    user,
+  };
 }
 
-/**
- * Register new user
- * POST {LOGIN_URL}/auth/register
- * Body: { email: string, username: string, phoneNumber: string, password: string, role: string }
- */
+/* ──────────────────────────────
+ *  REGISTER
+ * ────────────────────────────── */
 export async function registerUser(userData: RegisterRequest): Promise<RegisterResponse> {
-  const response = await apiClient.post<any>('/auth/register', userData);
+  const response = await apiClient.post<any>('/login/register', userData);
 
   if (__DEV__) {
     console.log('Register API Response:', JSON.stringify(response, null, 2));
   }
 
-  // Handle different response structures
-  // Some APIs return { user: {...}, token: "..." }
-  // Others might return the user directly or have a different structure
-  let registerResponse: RegisterResponse;
+  if (!response || !response.token) {
+    console.error('Unexpected registration response:', response);
+    throw new Error('Invalid registration response format');
+  }
 
-  if (response.user) {
-    // Standard structure: { user: {...}, token: "..." }
-    registerResponse = response as RegisterResponse;
-  } else if (response.id || response.email) {
-    // User returned directly: { id: "...", email: "...", ... }
-    registerResponse = {
-      user: response as User,
-      token: response.token,
+  const token: string = response.token;
+  let user: User | undefined = response.user;
+
+  if (!user) {
+    const payload = decodeJwtPayload(token);
+    if (!payload?.id || !payload?.email) {
+      console.error('Unable to derive user from registration token:', payload);
+      throw new Error('Invalid registration response format');
+    }
+
+    user = {
+      id: payload.id,
+      email: payload.email,
+      role: payload.role,
+      username: userData.username,
+      phoneNumber: userData.phoneNumber,
     };
-  } else {
-    // Unknown structure, try to extract user from response
-    console.error('Unexpected API response structure:', response);
-    throw new Error('Invalid response format from registration API');
   }
 
-  // Store token if provided
-  if (registerResponse.token) {
-    await setStoredToken(registerResponse.token);
-  }
+  await setStoredToken(token);
 
-  return registerResponse;
+  return {
+    message: response.message,
+    token,
+    user,
+  };
 }
 
-
-/**
- * Get current user
- * GET {LOGIN_URL}/auth/me (optional)
- */
+/* ──────────────────────────────
+ *  Get current user (optional)
+ * ────────────────────────────── */
 export async function getCurrentUser(): Promise<User> {
   return await apiClient.get<User>('/auth/me');
 }
 
-// Export the API client instance for direct use if needed
-export { apiClient };
+export async function getUserProfile(userId: string): Promise<UserProfile> {
+  const trimmedId = userId.trim();
+  if (!trimmedId) {
+    throw new Error('User ID is required to fetch profile information.');
+  }
 
+  const response = await apiClient.get<any>(`/user/users/${trimmedId}`);
+
+  if (!response || !response.id) {
+    throw new Error('User profile could not be retrieved.');
+  }
+
+  return {
+    id: response.id,
+    email: response.email,
+    username: response.username ?? undefined,
+    phoneNumber: response.phone_number ?? undefined,
+    role: response.role ?? undefined,
+    createdAt: response.created_at ?? undefined,
+    deletedAt: response.deleted_at ?? null,
+    profilePicture: resolveProfileImageSource(response.profile_picture),
+  };
+}
+
+/* ──────────────────────────────
+ *  JWT decode helper (React Native-safe)
+ * ────────────────────────────── */
+interface TokenPayload {
+  id?: string;
+  email?: string;
+  role?: string;
+  [key: string]: any;
+}
+
+function decodeJwtPayload(token: string): TokenPayload | null {
+  try {
+    const payload = jwtDecode<TokenPayload>(token);
+    if (__DEV__) {
+      console.log('Decoded JWT payload:', payload);
+    }
+    return payload;
+  } catch (error) {
+    console.error('Failed to decode JWT payload:', error);
+    return null;
+  }
+}

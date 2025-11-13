@@ -1,6 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
 
 // Token management
 const TOKEN_KEY = '@plantpal_token';
@@ -29,63 +27,14 @@ export async function removeStoredToken(): Promise<void> {
   }
 }
 
-/**
- * Get base URL from environment variables or constants
- * Automatically converts localhost to the correct address for the platform:
- * - Android emulator: localhost -> 10.0.2.2
- * - iOS simulator: localhost -> localhost (works as-is)
- * - Physical devices: Use your computer's local IP (e.g., 192.168.1.100)
- * 
- * @param envKey - Key to look for in Constants.expoConfig.extra (e.g., 'LOGIN_URL')
- * @param fallback - Fallback URL if not found in env
- */
-export function getBaseUrl(envKey?: string, fallback?: string): string {
-  let baseUrl: string | undefined;
+function resolveBaseUrl(): string {
+  const rawUrl = process.env.EXPO_PUBLIC_API_GATEWAY_URL;
 
-  // Try to get URL from expo constants if envKey is provided
-  if (envKey) {
-    baseUrl = Constants.expoConfig?.extra?.[envKey];
+  if (!rawUrl) {
+    throw new Error('Missing EXPO_PUBLIC_API_GATEWAY_URL environment variable.');
   }
 
-  // If no baseUrl from env, use platform-specific fallback
-  if (!baseUrl) {
-    if (fallback) {
-      baseUrl = fallback;
-    } else if (__DEV__) {
-      if (Platform.OS === 'android') {
-        baseUrl = 'http://10.0.2.2:3000';
-      } else if (Platform.OS === 'ios') {
-        baseUrl = 'http://localhost:3000';
-      } else {
-        baseUrl = 'http://localhost:3000';
-      }
-    } else {
-      baseUrl = 'http://localhost:3000';
-    }
-  }
-
-  // Clean up the URL: remove quotes, trim whitespace, remove trailing slashes
-  if (typeof baseUrl === 'string') {
-    baseUrl = baseUrl.trim().replace(/^["']|["']$/g, '').replace(/\/+$/, '');
-  }
-
-  // Auto-convert localhost for Android emulator
-  // Android emulator can't access localhost, must use 10.0.2.2
-  if (__DEV__ && Platform.OS === 'android') {
-    // Replace localhost or 127.0.0.1 with 10.0.2.2 for Android emulator
-    // This handles URLs like http://localhost:3000 or http://127.0.0.1:3000
-    if (baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')) {
-      // Extract protocol and port
-      const match = baseUrl.match(/^(https?:\/\/)(localhost|127\.0\.0\.1)(:\d+)?/);
-      if (match) {
-        const protocol = match[1]; // http:// or https://
-        const port = match[3] || ''; // :3000 or empty
-        baseUrl = `${protocol}10.0.2.2${port}`;
-      }
-    }
-  }
-
-  return baseUrl;
+  return rawUrl.trim().replace(/^["']|["']$/g, '').replace(/\/+$/, '');
 }
 
 // API Error interface
@@ -141,9 +90,9 @@ export class ApiClient {
 
       if (!response.ok) {
         const errorMessage = (data as ApiError).message || (data as ApiError).error || 'Request failed';
-        if (__DEV__) {
-          console.error('API Error:', errorMessage, 'Status:', response.status);
-        }
+        // if (__DEV__) {
+        //   console.error('API Error:', errorMessage, 'Status:', response.status);
+        // }
         throw new Error(errorMessage);
       }
 
@@ -220,8 +169,8 @@ export class ApiClient {
  * @param envKey - Key to look for in Constants.expoConfig.extra (e.g., 'LOGIN_URL')
  * @param fallback - Fallback URL if not found in env
  */
-export function createApiClient(envKey?: string, fallback?: string): ApiClient {
-  const baseUrl = process.env.EXPO_PUBLIC_API_GATEWAY_URL;
+export function createApiClient(): ApiClient {
+  const baseUrl = resolveBaseUrl();
 
   return new ApiClient(baseUrl);
 }

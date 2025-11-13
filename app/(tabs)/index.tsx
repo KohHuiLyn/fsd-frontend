@@ -1,16 +1,32 @@
+import logo from "@/assets/images/logo.png"
+import monsterra from "@/assets/images/monsterra.png"
+import plantDoctor from "@/assets/images/plant_doctor.png"
+import reminder_new from "@/assets/images/reminder.png"
+import snakeplant from "@/assets/images/snakeplant.png"
+import { getUserPlants, type UserPlant } from "@/services/myPlantService"
+import { getReminders, type Reminder } from "@/services/reminderService"
 import { horizontalScale as hs, scaleFont, verticalScale as vs } from "@/utils/scale"
-import { useRouter } from "expo-router"
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native"
+import { useFocusEffect, useRouter } from "expo-router"
+import { useCallback, useMemo, useState } from "react"
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  type ImageSourcePropType,
+} from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
-import chilliPadi from "../../assets/images/dummy/chilli_padi.jpg"
-import lime from "../../assets/images/dummy/lime.jpeg"
-import pandan from "../../assets/images/dummy/pandan.jpg"
-import logo from "../../assets/images/logo.png"
-import monsterra from "../../assets/images/monsterra.png"
-import plantDoctor from "../../assets/images/plant_doctor.png"
-import snakeplant from "../../assets/images/snakeplant.png"
+const REMINDER_ICON_URL = reminder_new
 
-export default function HomeScreen({ navigation }) {
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+const FALLBACK_PLANT_IMAGE = require("@/assets/images/dummy_image.jpg") as ImageSourcePropType
+
+export default function HomeScreen() {
   const insets = useSafeAreaInsets()
   const router = useRouter()
   const popularPlants = [
@@ -25,61 +41,69 @@ export default function HomeScreen({ navigation }) {
       image: snakeplant,
     },
   ]
+  const [userPlants, setUserPlants] = useState<UserPlant[]>([])
+  const [reminders, setReminders] = useState<Reminder[]>([])
+  const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const myPlants = [
-    {
-      id: "1",
-      name: "Chili Padi",
-      date: "23/05/25",
-      image: chilliPadi,
-    },
-    {
-      id: "2",
-      name: "Pandan Plant",
-      date: "23/05/25",
-      image: pandan,
-    },
-    {
-      id: "3",
-      name: "Lime Plant",
-      date: "23/05/25",
-      image: lime,
-    },
-  ]
+  const loadHomeData = useCallback(async (options?: { refresh?: boolean }) => {
+    if (options?.refresh) {
+      setIsRefreshing(true)
+    } else {
+      setIsLoading(true)
+    }
 
-  const reminders = [
-    {
-      id: "1",
-      title: "Water your Cactus today",
-      desc: "It's 2 weeks old, you have to water it twice a week.",
-      image: "https://cdn-icons-png.flaticon.com/512/7641/7641727.png",
-    },
-    {
-      id: "2",
-      title: "Prune the dead branches of Bamboo",
-      desc: "It's been 2–3 weeks since you last pruned it.",
-      image: "https://cdn-icons-png.flaticon.com/512/9906/9906372.png",
-    },
-  ]
+    try {
+      const [plantsResponse, remindersResponse] = await Promise.all([getUserPlants(), getReminders()])
+      setUserPlants(plantsResponse)
+      setReminders(remindersResponse)
+      setError(null)
+    } catch (err: any) {
+      console.error("Failed to load home data:", err)
+      setError(err?.message ?? "Unable to load dashboard data.")
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
+    }
+  }, [])
+
+  useFocusEffect(
+    useCallback(() => {
+      loadHomeData()
+    }, [loadHomeData])
+  )
+
+  const topPlants = useMemo(() => userPlants.slice(0, 3), [userPlants])
+  const todaysReminders = useMemo(
+    () => reminders.filter(isReminderForToday).slice(0, 3),
+    [reminders]
+  )
 
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={{ paddingBottom: insets.bottom + vs(50) }}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={() => loadHomeData({ refresh: true })}
+          tintColor="#4CAF50"
+        />
+      }
     >
       {/* Header */}
       <View style={styles.header}>
         <Image source={logo} style={styles.logoImage} resizeMode="contain" />
       </View>
 
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
       {/* Popular Plants Section - Enhanced with card styling */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Popular plants</Text>
-          <TouchableOpacity>
-            <Text style={styles.viewAll}>View all</Text>
-          </TouchableOpacity>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.popularScroll}>
           {popularPlants.map((plant) => (
@@ -96,6 +120,8 @@ export default function HomeScreen({ navigation }) {
       </View>
 
       {/* Plant Doctor */}
+      
+      <Pressable onPress={() => router.push("/diagnosisCamera")}>
       <View style={styles.doctorWrapper}>
         <View style={styles.doctorCard}>
           <View style={styles.doctorImageWrapper}>
@@ -106,35 +132,59 @@ export default function HomeScreen({ navigation }) {
             <Text style={styles.doctorDesc}>
               Upload a photo of your plant and get an AI-powered diagnosis of your plant in seconds!
             </Text>
-            <TouchableOpacity onPress={() => router.push("/diagnosisCamera")}>
               <Text style={styles.diagnosisBtn}>Start Diagnosis →</Text>
-            </TouchableOpacity>
+
           </View>
         </View>
       </View>
+      </Pressable>
 
       {/* My Plants */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>My Plants</Text>
-          <TouchableOpacity onPress={() => router.push("/myPlants")}>
+          <TouchableOpacity onPress={() => router.push("/myplants")}>
             <Text style={styles.viewAll}>View all</Text>
           </TouchableOpacity>
         </View>
 
-        {myPlants.map((p) => (
-          <TouchableOpacity
-            key={p.id}
-            style={styles.myPlantRow}
-            onPress={() => router.push("/plantDetails", { plant: p })}
-          >
-            <Image source={p.image} style={styles.myPlantImage} />
-            <View>
-              <Text style={styles.myPlantDate}>Added on {p.date}</Text>
-              <Text style={styles.myPlantName}>{p.name}</Text>
-            </View>
-          </TouchableOpacity>
-        ))}
+        {isLoading && userPlants.length === 0 ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color="#4CAF50" />
+          </View>
+        ) : topPlants.length === 0 ? (
+          <Text style={styles.emptyStateText}>Add your first plant to see it here.</Text>
+        ) : (
+          topPlants.map((plant) => {
+            const plantImageSource = plant.imageUrl ? { uri: plant.imageUrl } : FALLBACK_PLANT_IMAGE
+            const addedDate = formatPlantDate(plant.createdAt)
+            const plantName = plant.name ?? plant.plantName ?? "Unnamed plant"
+
+            return (
+              <TouchableOpacity
+                key={plant.id}
+                style={styles.myPlantRow}
+                onPress={() =>
+                  router.push({
+                    pathname: "/plantDetails",
+                    params: {
+                      id: plant.id,
+                      name: plantName,
+                      notes: plant.notes ?? "",
+                      image: plant.imageUrl ? encodeURIComponent(plant.imageUrl) : "",
+                    },
+                  })
+                }
+              >
+                <Image source={plantImageSource} style={styles.myPlantImage} />
+                <View>
+                  <Text style={styles.myPlantName}>{plantName}</Text>
+                  {addedDate ? <Text style={styles.myPlantDate}>Added on {addedDate}</Text> : null}
+                </View>
+              </TouchableOpacity>
+            )
+          })
+        )}
       </View>
 
       {/* Reminders */}
@@ -143,17 +193,102 @@ export default function HomeScreen({ navigation }) {
           <Text style={styles.sectionTitle}>Reminders for today</Text>
         </View>
 
-        {reminders.map((r) => (
-          <TouchableOpacity key={r.id} style={styles.reminderCard}>
-            <Image source={{ uri: r.image }} style={styles.reminderImage} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.reminderTitle}>{r.title}</Text>
-              <Text style={styles.reminderDesc}>{r.desc}</Text>
-            </View>
-          </TouchableOpacity>
-        ))}
+        {isLoading && reminders.length === 0 ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color="#4CAF50" />
+          </View>
+        ) : todaysReminders.length === 0 ? (
+          <Text style={styles.emptyStateText}>No reminders due today.</Text>
+        ) : (
+          todaysReminders.map((reminder) => {
+            const subtitle = formatReminderSubtitle(reminder)
+
+            return (
+              <View key={reminder.id} style={styles.reminderCard}>
+                                
+                <Image source={REMINDER_ICON_URL} style={styles.reminderImage} />
+
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.reminderTitle}>{reminder.name}</Text>
+                  {subtitle ? <Text style={styles.reminderDesc}>{subtitle}</Text> : null}
+                </View>
+              </View>
+            )
+          })
+        )}
       </View>
     </ScrollView>
+  )
+}
+
+function formatPlantDate(dateString?: string | null): string | null {
+  if (!dateString) {
+    return null
+  }
+
+  const parsed = new Date(dateString)
+  if (Number.isNaN(parsed.getTime())) {
+    return null
+  }
+
+  return parsed.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  })
+}
+
+function parseReminderDate(value?: string | null): Date | null {
+  if (!value) {
+    return null
+  }
+
+  const normalized = value.includes(" ") && !value.includes("T") ? value.replace(" ", "T") : value
+  const parsed = new Date(normalized)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function isReminderForToday(reminder: Reminder): boolean {
+  const today = new Date()
+  const dueDate = parseReminderDate(reminder.dueAt)
+
+  if (dueDate && isSameDay(dueDate, today)) {
+    return true
+  }
+
+  if (Array.isArray(reminder.dueDay) && reminder.dueDay.length > 0) {
+    const todayIndex = today.getDay()
+    return reminder.dueDay.includes(todayIndex)
+  }
+
+  return false
+}
+
+function formatReminderSubtitle(reminder: Reminder): string | null {
+  if (reminder.notes) {
+    return reminder.notes
+  }
+
+  const dueDate = parseReminderDate(reminder.dueAt)
+  if (dueDate) {
+    return `Due ${dueDate.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`
+  }
+
+  if (Array.isArray(reminder.dueDay) && reminder.dueDay.length > 0) {
+    const labels = reminder.dueDay
+      .map((day) => WEEKDAY_LABELS[day] ?? `Day ${day}`)
+      .join(", ")
+    return `Repeats on ${labels}`
+  }
+
+  return null
+}
+
+function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
   )
 }
 
@@ -201,7 +336,7 @@ const styles = StyleSheet.create({
     width: hs(160),
     marginRight: hs(16),
     position: "relative",
-    paddingTop: vs(50), // space for image that peeks out
+    paddingTop: vs(45), // space for image that peeks out
   },
   popularCard: {
     width: "100%",
@@ -297,7 +432,6 @@ const styles = StyleSheet.create({
   myPlantName: {
     fontSize: scaleFont(15),
     fontWeight: "600",
-    color: "#1a1a1a",
   },
   reminderCard: {
     flexDirection: "row",
@@ -323,5 +457,21 @@ const styles = StyleSheet.create({
     fontSize: scaleFont(12),
     color: "#666",
     lineHeight: vs(16),
+  },
+  loadingContainer: {
+    paddingVertical: vs(20),
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyStateText: {
+    fontSize: scaleFont(13),
+    color: "#7A7A7A",
+    fontStyle: "italic",
+    marginBottom: vs(10),
+  },
+  errorText: {
+    color: "#D32F2F",
+    fontSize: scaleFont(12),
+    marginBottom: vs(12),
   },
 })

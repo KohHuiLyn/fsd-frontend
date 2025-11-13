@@ -1,11 +1,14 @@
 "use client"
 
 import Template from "@/components/Template"
+import { createProxy } from "@/services/proxyService"
 import { horizontalScale as hs, moderateScale as ms, verticalScale as vs } from "@/utils/scale"
 import { MaterialCommunityIcons } from "@expo/vector-icons"
+import DateTimePicker from "@react-native-community/datetimepicker"
 import { useRouter } from "expo-router"
-import { useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -17,22 +20,132 @@ import {
   View,
 } from "react-native"
 
+function formatProxyApiDateTime(date: Date | null): string | null {
+  if (!date) {
+    return null;
+  }
+
+  const year = date.getUTCFullYear()
+  const month = `${date.getUTCMonth() + 1}`.padStart(2, "0")
+  const day = `${date.getUTCDate()}`.padStart(2, "0")
+  const hours = `${date.getUTCHours()}`.padStart(2, "0")
+  const minutes = `${date.getUTCMinutes()}`.padStart(2, "0")
+  const seconds = `${date.getUTCSeconds()}`.padStart(2, "0")
+
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}+00`
+}
+
+function formatProxyDisplayDate(date: Date | null): string {
+  if (!date) {
+    return "Tap to choose"
+  }
+  return date.toLocaleString()
+}
+
 export default function AddProxyGardener() {
   const router = useRouter()
   const [name, setName] = useState("")
-  const [startDate, setStartDate] = useState("")
-  const [endDate, setEndDate] = useState("")
-  const [contact, setContact] = useState("")
+  const [phoneNumber, setPhoneNumber] = useState("")
+  const [startDateTime, setStartDateTime] = useState<Date | null>(null)
+  const [endDateTime, setEndDateTime] = useState<Date | null>(null)
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false)
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false)
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false)
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
 
-  const handleSubmit = () => {
-    if (!name || !startDate || !endDate || !contact) {
-      Alert.alert("Missing details", "Please fill in all proxy gardener details.")
+  const resetForm = () => {
+    setName("")
+    setPhoneNumber("")
+    setStartDateTime(null)
+    setEndDateTime(null)
+  }
+
+  const formattedStartDate = useMemo(() => formatProxyDisplayDate(startDateTime), [startDateTime])
+  const formattedEndDate = useMemo(() => formatProxyDisplayDate(endDateTime), [endDateTime])
+
+  const handleSubmit = async () => {
+    if (!name.trim()) {
+      Alert.alert("Missing details", "Please enter the proxy's name.")
       return
     }
-    Alert.alert("Proxy added", `${name} will be notified about plant reminders.`, [
-      { text: "Back to list", onPress: () => router.back() },
-    ])
+
+    setIsSubmitting(true)
+    try {
+      await createProxy({
+        name: name.trim(),
+        phoneNumber: phoneNumber.trim() || null,
+        startDate: formatProxyApiDateTime(startDateTime),
+        endDate: formatProxyApiDateTime(endDateTime),
+      })
+      Alert.alert("Proxy added", `${name.trim()} will now receive plant reminders.`, [
+        { text: "Back to list", onPress: () => router.back() },
+      ])
+      resetForm()
+    } catch (error: any) {
+      console.error("Failed to create proxy:", error)
+      Alert.alert("Unable to add proxy", error?.message ?? "Please try again later.")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
+
+  const renderDatePicker = useCallback(
+    (
+      visible: boolean,
+      setVisible: (value: boolean) => void,
+      currentValue: Date | null,
+      mode: "start" | "end",
+      isDatePicker: boolean,
+    ) => {
+      if (!visible) {
+        return null
+      }
+
+      return (
+        <DateTimePicker
+          value={currentValue ?? new Date()}
+          mode={isDatePicker ? "date" : "time"}
+          display={Platform.OS === "ios" ? "spinner" : "default"}
+          is24Hour
+          onChange={(event, selectedDate) => {
+            setVisible(false)
+            if (!selectedDate) {
+              return
+            }
+
+            if (isDatePicker) {
+              const baseDate = currentValue ?? new Date()
+              const nextDate = new Date(selectedDate)
+              nextDate.setHours(baseDate.getHours())
+              nextDate.setMinutes(baseDate.getMinutes())
+              nextDate.setSeconds(0, 0)
+
+              if (mode === "start") {
+                setStartDateTime(nextDate)
+                setShowStartTimePicker(true)
+              } else {
+                setEndDateTime(nextDate)
+                setShowEndTimePicker(true)
+              }
+            } else {
+              const baseDate = new Date((currentValue ?? new Date()).getTime())
+              baseDate.setHours(selectedDate.getHours())
+              baseDate.setMinutes(selectedDate.getMinutes())
+              baseDate.setSeconds(0, 0)
+
+              if (mode === "start") {
+                setStartDateTime(baseDate)
+              } else {
+                setEndDateTime(baseDate)
+              }
+            }
+          }}
+        />
+      )
+    },
+    [setStartDateTime, setEndDateTime, setShowStartTimePicker, setShowEndTimePicker],
+  )
 
   return (
     <Template title="Add Proxy Gardener" onPressBack={() => router.back()}>
@@ -54,56 +167,75 @@ export default function AddProxyGardener() {
 
           <View style={styles.formCard}>
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Name</Text>
+              <Text style={styles.inputLabel}>Name *</Text>
               <TextInput
                 value={name}
                 onChangeText={setName}
                 placeholder="Helper"
                 style={styles.input}
                 placeholderTextColor="#A7A7A7"
+                editable={!isSubmitting}
               />
-            </View>
-
-            <View style={styles.rowInputs}>
-              <View style={[styles.inputGroup, styles.halfInput]}>
-                <Text style={styles.inputLabel}>Start date</Text>
-                <TextInput
-                  value={startDate}
-                  onChangeText={setStartDate}
-                  placeholder="22/12/2025"
-                  style={styles.input}
-                  placeholderTextColor="#A7A7A7"
-                />
-              </View>
-              <View style={[styles.inputGroup, styles.halfInput]}>
-                <Text style={styles.inputLabel}>End date</Text>
-                <TextInput
-                  value={endDate}
-                  onChangeText={setEndDate}
-                  placeholder="26/12/2025"
-                  style={styles.input}
-                  placeholderTextColor="#A7A7A7"
-                />
-              </View>
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Contact number</Text>
+              <Text style={styles.inputLabel}>Phone number</Text>
               <TextInput
-                value={contact}
-                onChangeText={setContact}
-                placeholder="81234567"
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                placeholder="+65 8123 4567"
                 keyboardType="phone-pad"
                 style={styles.input}
                 placeholderTextColor="#A7A7A7"
+                editable={!isSubmitting}
               />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Start date & time</Text>
+              <TouchableOpacity
+                style={styles.dateInput}
+                onPress={() => setShowStartDatePicker(true)}
+                activeOpacity={0.85}
+                disabled={isSubmitting}
+              >
+                <Text style={styles.dateInputText}>{formattedStartDate}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>End date & time</Text>
+              <TouchableOpacity
+                style={styles.dateInput}
+                onPress={() => setShowEndDatePicker(true)}
+                activeOpacity={0.85}
+                disabled={isSubmitting}
+              >
+                <Text style={styles.dateInputText}>{formattedEndDate}</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </ScrollView>
 
-        <TouchableOpacity style={styles.primaryButton} onPress={handleSubmit} activeOpacity={0.9}>
-          <MaterialCommunityIcons name="account-plus" size={20} color="#fff" />
-          <Text style={styles.primaryButtonText}>Add proxy</Text>
+        {renderDatePicker(showStartDatePicker, setShowStartDatePicker, startDateTime, "start", true)}
+        {renderDatePicker(showStartTimePicker, setShowStartTimePicker, startDateTime, "start", false)}
+        {renderDatePicker(showEndDatePicker, setShowEndDatePicker, endDateTime, "end", true)}
+        {renderDatePicker(showEndTimePicker, setShowEndTimePicker, endDateTime, "end", false)}
+
+        <TouchableOpacity
+          style={[styles.primaryButton, isSubmitting && { opacity: 0.7 }]}
+          onPress={handleSubmit}
+          activeOpacity={0.9}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <>
+              <MaterialCommunityIcons name="account-plus" size={20} color="#fff" />
+              <Text style={styles.primaryButtonText}>Add proxy</Text>
+            </>
+          )}
         </TouchableOpacity>
       </KeyboardAvoidingView>
     </Template>
@@ -164,12 +296,15 @@ const styles = StyleSheet.create({
     fontSize: ms(15),
     color: "#1A1A1A",
   },
-  rowInputs: {
-    flexDirection: "row",
-    gap: hs(12),
+  dateInput: {
+    backgroundColor: "#F6F8F9",
+    borderRadius: ms(14),
+    paddingHorizontal: hs(16),
+    paddingVertical: vs(14),
   },
-  halfInput: {
-    flex: 1,
+  dateInputText: {
+    fontSize: ms(15),
+    color: "#1A1A1A",
   },
   primaryButton: {
     marginTop: vs(12),

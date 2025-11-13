@@ -1,19 +1,36 @@
 "use client"
 
+import { createReminder, deleteReminder, getReminders, type Reminder as ReminderDto } from "@/services/reminderService"
 import { horizontalScale as hs, moderateScale as ms, verticalScale as vs } from "@/utils/scale"
 import { MaterialCommunityIcons } from "@expo/vector-icons"
-import { useState } from "react"
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import DateTimePicker from "@react-native-community/datetimepicker"
+
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
-type FilterType = "All" | "Water" | "Fertilise" | "Mist"
+type ReminderCategory = "all" | "water" | "fertilise" | "mist"
 
-type Reminder = {
+type ReminderItem = {
   id: string
-  type: "Water" | "Fertilise" | "Mist"
-  plantCount: number
-  plants: string[]
-  time: string
+  name: string
+  notes?: string | null
+  dueAt?: string
+  category: ReminderCategory
 }
 
 type DateItem = {
@@ -21,40 +38,219 @@ type DateItem = {
   isSelected: boolean
 }
 
+const CATEGORY_LABELS: Record<ReminderCategory, string> = {
+  all: "All",
+  water: "Water",
+  fertilise: "Fertilise",
+  mist: "Mist",
+}
+
+const CATEGORY_ICONS: Record<ReminderCategory, string> = {
+  all: "calendar-check",
+  water: "water",
+  fertilise: "flower",
+  mist: "weather-partly-rainy",
+}
+
+const CATEGORY_FILTERS: ReminderCategory[] = ["all", "water", "fertilise", "mist"]
+
+const WEEKDAY_OPTIONS = [
+  { label: "S", value: 0, fullLabel: "Sun" },
+  { label: "M", value: 1, fullLabel: "Mon" },
+  { label: "T", value: 2, fullLabel: "Tue" },
+  { label: "W", value: 3, fullLabel: "Wed" },
+  { label: "T", value: 4, fullLabel: "Thu" },
+  { label: "F", value: 5, fullLabel: "Fri" },
+  { label: "S", value: 6, fullLabel: "Sat" },
+] as const
+
 export default function Reminders() {
   const insets = useSafeAreaInsets()
-  const [selectedFilter, setSelectedFilter] = useState<FilterType>("All")
-  const [selectedDate, setSelectedDate] = useState<number>(2) // Index 2 = May 25
-  const [expandedReminders, setExpandedReminders] = useState<Set<string>>(new Set())
+  const [selectedFilter, setSelectedFilter] = useState<ReminderCategory>("all")
+  const [selectedDate, setSelectedDate] = useState<number>(2)
+  const [reminders, setReminders] = useState<ReminderItem[]>([])
+  const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
+  const [error, setError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
+  const [isCreateModalVisible, setIsCreateModalVisible] = useState<boolean>(false)
+  const [newReminderName, setNewReminderName] = useState<string>("")
+  const [newReminderNotes, setNewReminderNotes] = useState<string>("")
+  const [newReminderDueAt, setNewReminderDueAt] = useState<string>(new Date().toISOString())
+  const [newReminderSelectedDays, setNewReminderSelectedDays] = useState<Set<number>>(new Set())
 
-  // Generate date items for the week (May 23-27)
-  const today = new Date(2024, 4, 25) // May 25, 2024 (month is 0-indexed)
-  const dates: DateItem[] = []
-  for (let i = -2; i <= 2; i++) {
-    const date = new Date(today)
-    date.setDate(today.getDate() + i)
-    dates.push({
-      date,
-      isSelected: i === 0,
-    })
+  const [showDatePicker, setShowDatePicker] = useState(false)
+  const [showTimePicker, setShowTimePicker] = useState(false)
+  const [selectedDateTime, setSelectedDateTime] = useState<Date>(new Date())
+  
+  const today = useMemo(() => new Date(), [])
+  const dates: DateItem[] = useMemo(() => {
+    const items: DateItem[] = []
+    for (let i = -2; i <= 2; i++) {
+      const date = new Date(today)
+      date.setDate(today.getDate() + i)
+      items.push({ date, isSelected: i === 0 })
+    }
+    return items
+  }, [today])
+
+  const mapDtoToReminderItem = useCallback((dto: ReminderDto): ReminderItem => {
+    const name = dto.name || (dto as any).rName || (dto as any).r_name || "Reminder"
+    const normalizedName = name.toLowerCase()
+    let category: ReminderCategory = "all"
+    if (normalizedName.includes("fertil")) {
+      category = "fertilise"
+    } else if (normalizedName.includes("mist")) {
+      category = "mist"
+    } else if (normalizedName.includes("water")) {
+      category = "water"
+    }
+
+    const rawDueAt = (dto as any).dueAt ?? (dto as any).due_at
+    const dueAt = rawDueAt == null ? undefined : String(rawDueAt)
+
+    return {
+      id: dto.id,
+      name,
+      notes: dto.notes ?? null,
+      dueAt,
+      category,
+    }
+  }, [])
+  function isSameDay(dateA: Date, dateB: Date): boolean {
+    return (
+      dateA.getFullYear() === dateB.getFullYear() &&
+      dateA.getMonth() === dateB.getMonth() &&
+      dateA.getDate() === dateB.getDate()
+    );
   }
+  
+  const loadReminders = useCallback(
+    async (options?: { refresh?: boolean }) => {
+      if (options?.refresh) {
+        setIsRefreshing(true)
+      } else {
+        setIsLoading(true)
+      }
 
-  const reminders: Reminder[] = [
-    {
-      id: "1",
-      type: "Water",
-      plantCount: 10,
-      plants: ["Chilli Padi", "Lime", "Pandan", "Mandarin Orange", "Banana", "Mango"],
-      time: "10:00 AM",
+      try {
+        const data = await getReminders()
+        setReminders((data ?? []).map(mapDtoToReminderItem))
+        setError(null)
+      } catch (err: any) {
+        console.error("Failed to load reminders:", err)
+        if (typeof err?.message === "string" && err.message.toLowerCase().includes("notfound")) {
+          setReminders([])
+          setError(null)
+        } else {
+          setError(err?.message ?? "Unable to load reminders")
+        }
+      } finally {
+        setIsLoading(false)
+        setIsRefreshing(false)
+      }
     },
-    {
-      id: "2",
-      type: "Fertilise",
-      plantCount: 1,
-      plants: ["Chilli Padi"],
-      time: "12:00 PM",
+    [mapDtoToReminderItem]
+  )
+
+  useEffect(() => {
+    loadReminders()
+  }, [loadReminders])
+
+  const filteredReminders = useMemo(() => {
+    const targetDate = dates[selectedDate]?.date;
+    if (!targetDate) return reminders;
+  
+    return reminders.filter((reminder) => {
+      // Category filter
+      const matchCategory = selectedFilter === "all" || reminder.category === selectedFilter;
+  
+      // Date filter
+      if (!reminder.dueAt) return false;
+      const reminderDate = new Date(reminder.dueAt);
+      const matchDate = isSameDay(reminderDate, targetDate);
+  
+      return matchCategory && matchDate;
+    });
+  }, [reminders, selectedFilter, selectedDate, dates]);
+  
+  
+
+  const resetCreateForm = useCallback(() => {
+    setNewReminderName("")
+    setNewReminderNotes("")
+    setNewReminderDueAt(new Date().toISOString())
+    setNewReminderSelectedDays(new Set())
+  }, [])
+
+  const handleCreateReminder = useCallback(async () => {
+    if (!newReminderName.trim()) {
+      Alert.alert("Reminder name required", "Please enter a reminder name.")
+      return
+    }
+
+    const dueDayArray = Array.from(newReminderSelectedDays).sort((a, b) => a - b)
+
+    setIsSubmitting(true)
+    try {
+      await createReminder({
+        rName: newReminderName.trim(),
+        notes: newReminderNotes.trim() ? newReminderNotes.trim() : null,
+        dueAt: normalizeDueAtInput(newReminderDueAt),
+        dueDay: dueDayArray,
+        isActive: true,
+        isProxy: false,
+        proxy: "+65 9106 5764",
+      })
+      resetCreateForm()
+      setIsCreateModalVisible(false)
+      await loadReminders()
+    } catch (error: any) {
+      console.error("Failed to create reminder:", error)
+      Alert.alert("Unable to create reminder", error?.message ?? "Please try again later.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }, [newReminderName, newReminderNotes, newReminderDueAt, newReminderSelectedDays, loadReminders, resetCreateForm])
+
+  const handleDeleteReminder = useCallback(
+    (reminderId: string) => {
+      Alert.alert(
+        "Delete reminder",
+        "Are you sure you want to delete this reminder?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await deleteReminder(reminderId)
+                setReminders((prev) => prev.filter((reminder) => reminder.id !== reminderId))
+              } catch (error: any) {
+                console.error("Failed to delete reminder:", error)
+                Alert.alert("Unable to delete reminder", error?.message ?? "Please try again later.")
+              }
+            },
+          },
+        ],
+        { cancelable: true }
+      )
     },
-  ]
+    []
+  )
+
+  const toggleDueDaySelection = useCallback((dayValue: number) => {
+    setNewReminderSelectedDays((prev) => {
+      const next = new Set(prev)
+      if (next.has(dayValue)) {
+        next.delete(dayValue)
+      } else {
+        next.add(dayValue)
+      }
+      return next
+    })
+  }, [])
 
   const formatDate = (date: Date) => {
     const month = date.toLocaleString("default", { month: "short" })
@@ -63,40 +259,50 @@ export default function Reminders() {
     return { month, day, weekday }
   }
 
-  const filteredReminders = reminders.filter(
-    (reminder) => selectedFilter === "All" || reminder.type === selectedFilter
-  )
-
-  const getIconName = (type: string) => {
-    switch (type) {
-      case "Water":
-        return "water"
-      case "Fertilise":
-        return "flower"
-      case "Mist":
-        return "water"
-      default:
-        return "leaf"
+  function formatFriendlyDate(dateString: string): string {
+    const date = new Date(dateString)
+    if (Number.isNaN(date.getTime())) {
+      return dateString
     }
-  }
-
-  const toggleExpand = (reminderId: string) => {
-    setExpandedReminders((prev) => {
-      const newSet = new Set(prev)
-      if (newSet.has(reminderId)) {
-        newSet.delete(reminderId)
-      } else {
-        newSet.add(reminderId)
-      }
-      return newSet
+    const relativeFormatter = new Intl.DateTimeFormat(undefined, {
+      weekday: 'short',
+      hour: 'numeric',
+      minute: 'numeric',
     })
+    return relativeFormatter.format(date)
   }
 
+  function normalizeDueAtInput(input: string): string | null {
+    const trimmed = input.trim()
+    if (!trimmed) {
+      return null
+    }
+  
+    // Try to parse into Date
+    const parsed = new Date(trimmed)
+    if (Number.isNaN(parsed.getTime())) {
+      console.warn("Invalid date input:", trimmed)
+      return null
+    }
+  
+    // Convert to "YYYY-MM-DD HH:mm:ss+00" (UTC-based)
+    const yyyy = parsed.getUTCFullYear()
+    const mm = String(parsed.getUTCMonth() + 1).padStart(2, "0")
+    const dd = String(parsed.getUTCDate()).padStart(2, "0")
+    const hh = String(parsed.getUTCHours()).padStart(2, "0")
+    const mi = String(parsed.getUTCMinutes()).padStart(2, "0")
+    const ss = String(parsed.getUTCSeconds()).padStart(2, "0")
+  
+    // This is the key difference — no "T", no "Z", but explicit +00 offset
+    return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}+00`
+  }
+  
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Reminders</Text>
+        {error ? <Text style={styles.headerError}>{error}</Text> : null}
       </View>
 
       {/* Date Selector */}
@@ -133,7 +339,7 @@ export default function Reminders() {
 
       {/* Filter Buttons */}
       <View style={styles.filterContainer}>
-        {(["All", "Water", "Fertilise", "Mist"] as FilterType[]).map((filter) => (
+        {CATEGORY_FILTERS.map((filter) => (
           <TouchableOpacity
             key={filter}
             style={[
@@ -149,63 +355,209 @@ export default function Reminders() {
                 selectedFilter === filter && styles.filterTextSelected,
               ]}
             >
-              {filter}
+              {CATEGORY_LABELS[filter]}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
       {/* Reminder List */}
-      <ScrollView
-        showsVerticalScrollIndicator={false}
+      <FlatList
+        data={filteredReminders}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.reminderList}
-      >
-        {filteredReminders.length === 0 ? (
+        ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>No Tasks found</Text>
+            {isLoading ? (
+              <ActivityIndicator size="small" color="#4CAF50" />
+            ) : (
+              <Text style={styles.emptyStateText}>No reminders found</Text>
+            )}
           </View>
-        ) : (
-          filteredReminders.map((reminder) => (
-          <View key={reminder.id} style={styles.reminderCard}>
+        }
+        renderItem={({ item }) => (
+          <View key={item.id} style={styles.reminderCard}>
             <View style={styles.reminderContent}>
-              <Text style={styles.plantCount}>
-                {reminder.plantCount} {reminder.plantCount === 1 ? "plant" : "plants"}
-              </Text>
-  
-              <Text style={styles.reminderType}>{reminder.type}</Text>
-              <View style={styles.plantsList}>
-                <View style={styles.plantsRow}>
-                  <Text 
-                    style={styles.plantsText} 
-                    numberOfLines={expandedReminders.has(reminder.id) ? undefined : 1}
-                  >
-                    {reminder.plants.join(", ")}
-                  </Text>
-                  {reminder.plants.length > 3 && (
-                    <TouchableOpacity onPress={() => toggleExpand(reminder.id)}>
-                      <Text style={styles.seeMoreText}>
-                        {expandedReminders.has(reminder.id) ? " See less" : " See more"}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
+              <Text style={styles.reminderName}>{item.name}</Text>
+              {item.notes ? <Text style={styles.reminderNotes}>{item.notes}</Text> : null}
               <View style={styles.timeRow}>
                 <MaterialCommunityIcons name="clock-outline" size={16} color="#4CAF50" />
-                <Text style={styles.timeText}>{reminder.time}</Text>
+                <Text style={styles.timeText}>{item.dueAt ? formatFriendlyDate(item.dueAt) : "No due time"}</Text>
               </View>
             </View>
-            <View style={styles.iconContainer}>
-              <MaterialCommunityIcons
-                name={getIconName(reminder.type) as any}
-                size={32}
-                color="#4CAF50"
-              />
+            <View style={styles.cardActions}>
+              <View style={styles.iconContainer}>
+                <MaterialCommunityIcons
+                  name={CATEGORY_ICONS[item.category] as any}
+                  size={32}
+                  color="#4CAF50"
+                />
+              </View>
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDeleteReminder(item.id)}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons name="trash-can-outline" size={20} color="#E53935" />
+              </TouchableOpacity>
             </View>
           </View>
-          ))
         )}
-      </ScrollView>
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={() => loadReminders({ refresh: true })}
+            tintColor="#4CAF50"
+          />
+        }
+      />
+
+      <TouchableOpacity
+        style={styles.fab}
+        activeOpacity={0.85}
+        onPress={() => {
+          resetCreateForm()
+          setIsCreateModalVisible(true)
+        }}
+      >
+        <MaterialCommunityIcons name="plus" size={28} color="#fff" />
+      </TouchableOpacity>
+
+      <Modal
+        transparent
+        animationType="slide"
+        visible={isCreateModalVisible}
+        onRequestClose={() => {
+          if (!isSubmitting) {
+            setIsCreateModalVisible(false)
+          }
+        }}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalContainer}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <TouchableOpacity
+            style={styles.modalBackdrop}
+            activeOpacity={1}
+            onPress={() => {
+              if (!isSubmitting) {
+                setIsCreateModalVisible(false)
+              }
+            }}
+          />
+          <View style={styles.modalContent}>
+
+            <Text style={styles.modalTitle}>Create Reminder</Text>
+              <Text style={styles.modalLabel}>Reminder Name</Text>
+
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Reminder name"
+              value={newReminderName}
+              onChangeText={setNewReminderName}
+              editable={!isSubmitting}
+            />
+              <Text style={styles.modalLabel}>Notes (optional)</Text>
+
+            <TextInput
+              style={[styles.modalInput, styles.modalInputMultiline]}
+              placeholder="Water with care"
+              value={newReminderNotes}
+              onChangeText={setNewReminderNotes}
+              editable={!isSubmitting}
+              multiline
+              numberOfLines={3}
+            />
+            <View style={styles.modalFormGroup}>
+              <Text style={styles.modalLabel}>When should we remind you?</Text>
+              <View>
+  <TouchableOpacity
+    style={styles.modalInput}
+    onPress={() => setShowDatePicker(true)}
+    disabled={isSubmitting}
+  >
+    <Text style={{ color: "#1a1a1a" }}>
+      {selectedDateTime.toLocaleString()}
+    </Text>
+  </TouchableOpacity>
+
+  {showDatePicker && (
+    <DateTimePicker
+      value={selectedDateTime}
+      mode="date"
+      display={Platform.OS === "ios" ? "spinner" : "default"}
+      onChange={(event, date) => {
+        setShowDatePicker(false)
+        if (date) {
+          const newDate = new Date(date)
+          newDate.setHours(selectedDateTime.getHours())
+          newDate.setMinutes(selectedDateTime.getMinutes())
+          setSelectedDateTime(newDate)
+          setShowTimePicker(true)
+        }
+      }}
+    />
+  )}
+
+  {showTimePicker && (
+    <DateTimePicker
+      value={selectedDateTime}
+      mode="time"
+      is24Hour={true}
+      display={Platform.OS === "ios" ? "spinner" : "default"}
+      onChange={(event, time) => {
+        setShowTimePicker(false)
+        if (time) {
+          const newDate = new Date(selectedDateTime)
+          newDate.setHours(time.getHours())
+          newDate.setMinutes(time.getMinutes())
+          setSelectedDateTime(newDate)
+          setNewReminderDueAt(newDate.toISOString()) // update your existing string state
+        }
+      }}
+    />
+  )}
+</View>
+
+            </View>
+
+            <View style={styles.modalFormGroup}>
+              <Text style={styles.modalLabel}>Remind me on</Text>
+              <View style={styles.dueDayRow}>
+                {WEEKDAY_OPTIONS.map((option) => {
+                  const isSelected = newReminderSelectedDays.has(option.value)
+                  return (
+                    <TouchableOpacity
+                      key={option.value}
+                      style={[styles.dueDayButton, isSelected && styles.dueDayButtonSelected]}
+                      onPress={() => toggleDueDaySelection(option.value)}
+                      activeOpacity={0.75}
+                      disabled={isSubmitting}
+                    >
+                      <Text style={[styles.dueDayLabel, isSelected && styles.dueDayLabelSelected]}>
+                        {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                  )
+                })}
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.modalSubmitButton}
+              onPress={handleCreateReminder}
+              activeOpacity={0.85}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.modalSubmitButtonText}>Create</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   )
 }
@@ -223,6 +575,11 @@ const styles = StyleSheet.create({
     fontSize: ms(20),
     fontWeight: "700",
     color: "#1a1a1a",
+  },
+  headerError: {
+    marginTop: vs(4),
+    fontSize: ms(12),
+    color: "#D32F2F",
   },
   dateSelectorContainer: {
     height: vs(120),
@@ -314,35 +671,16 @@ const styles = StyleSheet.create({
   reminderContent: {
     flex: 1,
   },
-  plantCount: {
-    fontSize: ms(12),
-    color: "#999",
-    marginBottom: vs(4),
-  },
-  reminderType: {
+  reminderName: {
     fontSize: ms(18),
     fontWeight: "700",
     color: "#1a1a1a",
-    marginBottom: vs(8),
+    marginBottom: vs(6),
   },
-  plantsList: {
-    marginBottom: vs(12),
-  },
-  plantsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "flex-start",
-  },
-  plantsText: {
+  reminderNotes: {
     fontSize: ms(13),
-    color: "#999",
-    flex: 1,
-    flexShrink: 1,
-  },
-  seeMoreText: {
-    fontSize: ms(13),
-    color: "#4CAF50",
-    fontWeight: "600",
+    color: "#666",
+    marginBottom: vs(10),
   },
   timeRow: {
     flexDirection: "row",
@@ -353,10 +691,17 @@ const styles = StyleSheet.create({
     fontSize: ms(12),
     color: "#999",
   },
+  cardActions: {
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    marginLeft: hs(12),
+  },
   iconContainer: {
-    position:'absolute',
-    top: vs(15),
-    right: hs(15),
+    paddingTop: vs(4),
+  },
+  deleteButton: {
+    marginTop: vs(12),
+    padding: ms(6),
   },
   emptyState: {
     flex: 1,
@@ -368,5 +713,117 @@ const styles = StyleSheet.create({
     fontSize: ms(16),
     color: "#999",
     fontWeight: "500",
+  },
+  fab: {
+    position: "absolute",
+    right: hs(20),
+    bottom: vs(30),
+    width: hs(56),
+    height: hs(56),
+    borderRadius: hs(28),
+    backgroundColor: "#4CAF50",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: vs(2) },
+    shadowOpacity: 0.2,
+    shadowRadius: ms(4),
+    elevation: 4,
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  modalBackdrop: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(0,0,0,0.3)",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    paddingHorizontal: hs(20),
+    paddingTop: vs(24),
+    paddingBottom: vs(28),
+    borderTopLeftRadius: ms(20),
+    borderTopRightRadius: ms(20),
+  },
+  modalTitle: {
+    fontSize: ms(20),
+    fontWeight: "700",
+    color: "#1a1a1a",
+    marginBottom: vs(16),
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+    borderRadius: ms(12),
+    paddingHorizontal: hs(14),
+    paddingVertical: vs(12),
+    fontSize: ms(14),
+    color: "#1a1a1a",
+    marginBottom: vs(12),
+  },
+  modalInputMultiline: {
+    minHeight: vs(80),
+    textAlignVertical: "top",
+  },
+  modalSubmitButton: {
+    marginTop: vs(4),
+    backgroundColor: "#4CAF50",
+    paddingVertical: vs(14),
+    borderRadius: ms(12),
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalSubmitButtonText: {
+    color: "#fff",
+    fontSize: ms(16),
+    fontWeight: "600",
+  },
+  modalFormGroup: {
+    marginBottom: vs(12),
+  },
+  modalLabel: {
+    fontSize: ms(14),
+    fontWeight: "600",
+    color: "#1a1a1a",
+    marginBottom: vs(4),
+  },
+  dueDayRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    gap: hs(8),
+    marginTop: vs(8),
+  },
+  dueDayButton: {
+    width: hs(40),
+    paddingVertical: vs(10),
+    borderRadius: ms(10),
+    borderWidth: 1,
+    borderColor: "#cfcfcf",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+  },
+  dueDayButtonSelected: {
+    backgroundColor: "#4CAF50",
+    borderColor: "#4CAF50",
+  },
+  dueDayLabel: {
+    fontSize: ms(14),
+    fontWeight: "600",
+    color: "#1a1a1a",
+  },
+  dueDayLabelSelected: {
+    color: "#fff",
+  },
+  dueDayHelper: {
+    marginTop: vs(6),
+    fontSize: ms(11),
+    color: "#777",
   },
 })

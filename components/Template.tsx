@@ -1,9 +1,9 @@
 import { horizontalScale as hs, scaleFont, verticalScale as vs } from "@/utils/scale"
 import { MaterialCommunityIcons } from "@expo/vector-icons"
-import React, { useRef, useState, useEffect } from "react"
-import { Animated, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, StatusBar, type ImageSourcePropType } from "react-native"
-import { useSafeAreaInsets } from "react-native-safe-area-context"
+import React, { useEffect, useRef, useState } from "react"
+import { Animated, Dimensions, Image, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View, type ImageSourcePropType } from "react-native"
 import ImageViewing from "react-native-image-viewing"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window")
 
@@ -15,13 +15,16 @@ type TemplateProps = {
 	onPressBack?: () => void
 	onPressSettings?: () => void
 	children?: React.ReactNode
+	backgroundColor?: string
 }
 
-export default function Template({ title, image, images, imageHeader, onPressBack, onPressSettings, children }: TemplateProps) {
+export default function Template({ title, image, images, imageHeader, onPressBack, onPressSettings, children, backgroundColor }: TemplateProps) {
   const insets = useSafeAreaInsets()
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const imageScrollRef = useRef<ScrollView>(null)
   const [imageViewerVisible, setImageViewerVisible] = useState(false)
+
+  const resolvedBackground = backgroundColor ?? "#fff"
 
   // Use images array if provided, otherwise fall back to single image
   const imageList = images || (image ? [image] : [])
@@ -98,7 +101,7 @@ export default function Template({ title, image, images, imageHeader, onPressBac
     })
 
     return (
-      <View style={{ flex: 1, backgroundColor: "#fff" }}>
+      <View style={{ flex: 1, backgroundColor: resolvedBackground }}>
         <Animated.View style={[styles.animatedHeader, { height: headerHeight }]}> 
           {imageList.length > 0 && (
             hasMultipleImages ? (
@@ -239,21 +242,46 @@ export default function Template({ title, image, images, imageHeader, onPressBac
   }
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
-      <View style={styles.headerContainer}>
-        {image ? (
-          <Image source={image} style={styles.headerImage} resizeMode="cover" />
-        ) : null}
-        {title ? <Text style={styles.title}>{title}</Text> : null}
-      </View>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: resolvedBackground }}
+      contentContainerStyle={{
+        paddingBottom: vs(24),
+        paddingTop: insets.top + vs(0), // 👈 adds safe-area top padding
+      }}
+      showsVerticalScrollIndicator={false}
+    >
+      
+      <View style={[styles.headerContainer, { paddingTop: insets.top + vs(4) }]}>
+  <View style={styles.headerRow}>
+    {onPressBack ? (
+      <TouchableOpacity onPress={onPressBack} style={styles.backButton}>
+        <MaterialCommunityIcons name="chevron-left" size={28} color="#000" />
+      </TouchableOpacity>
+    ) : (
+      <View style={styles.backButtonPlaceholder} />
+    )}
+
+    {title ? <Text style={styles.title}>{title}</Text> : null}
+
+    {onPressSettings ? (
+      <TouchableOpacity onPress={onPressSettings} style={styles.settingsButton}>
+        <MaterialCommunityIcons name="cog" size={24} color="#000" />
+      </TouchableOpacity>
+    ) : (
+      <View style={styles.backButtonPlaceholder} />
+    )}
+  </View>
+</View>
+
       <View style={styles.content}>{children}</View>
     </ScrollView>
   )
+  
 }
 
 const styles = StyleSheet.create({
   title: {
-    fontSize: scaleFont(24),
+    fontSize: scaleFont(20),
     fontWeight: "700",
     alignSelf:'center',
     margin:'auto',
@@ -386,4 +414,24 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: hs(16),
+    marginBottom: vs(8),
+  },
+  
+  backButton: {
+    padding: hs(6),
+  },
+  
+  settingsButton: {
+    padding: hs(6),
+  },
+  
+  backButtonPlaceholder: {
+    width: hs(28), // keeps title centered if button absent
+  },
+  
 })

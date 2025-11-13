@@ -2,11 +2,22 @@
 
 import JournalCard, { type JournalEntry } from "@/components/JournalCard"
 import { useAuth } from "@/contexts/AuthContext"
+import { getUserProfile, type UserProfile } from "@/services/userService"
 import { horizontalScale as hs, moderateScale as ms, verticalScale as vs } from "@/utils/scale"
 import { MaterialCommunityIcons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
-import { useState } from "react"
-import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, type ImageSourcePropType } from "react-native"
+import { useEffect, useMemo, useState } from "react"
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  type ImageSourcePropType,
+} from "react-native"
 import ImageViewing from "react-native-image-viewing"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
@@ -18,6 +29,45 @@ export default function Profile() {
   const [imageViewerVisible, setImageViewerVisible] = useState(false)
   const [imageViewerIndex, setImageViewerIndex] = useState(0)
   const [currentEntryImages, setCurrentEntryImages] = useState<ImageSourcePropType[]>([])
+  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [isProfileLoading, setIsProfileLoading] = useState<boolean>(false)
+  const [profileError, setProfileError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!user?.id) {
+      return
+    }
+
+    let isMounted = true
+    setIsProfileLoading(true)
+
+    getUserProfile(user.id)
+      .then((data) => {
+        if (!isMounted) {
+          return
+        }
+        setProfile(data)
+        setProfileError(null)
+      })
+      .catch((error: any) => {
+        if (!isMounted) {
+          return
+        }
+        const message = typeof error?.message === "string" && error.message.trim().length > 0
+          ? error.message
+          : "Unable to load profile information"
+        setProfileError(message)
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsProfileLoading(false)
+        }
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [user?.id])
 
   const handleLogout = () => {
     Alert.alert(
@@ -135,30 +185,73 @@ export default function Profile() {
     }
   }
 
+  const profileImageSource = useMemo<ImageSourcePropType>(() => {
+    if (profile?.profilePicture) {
+      return profile.profilePicture as ImageSourcePropType
+    }
+    return require("../../assets/images/profile_pic.png") as ImageSourcePropType
+  }, [profile?.profilePicture])
+
+  const displayName = useMemo(() => {
+    return (
+      profile?.username ??
+      user?.username ??
+      profile?.email ??
+      user?.email ??
+      "User"
+    )
+  }, [profile?.username, profile?.email, user?.username, user?.email])
+
+  const displayEmail = useMemo(() => {
+    return profile?.email ?? user?.email ?? null
+  }, [profile?.email, user?.email])
+
+  const displayRoleLabel = useMemo(() => {
+    const role = profile?.role ?? user?.role ?? null
+    return role ? formatLabel(role) : null
+  }, [profile?.role, user?.role])
+
+  const displayPhone = useMemo(() => {
+    return profile?.phoneNumber ?? user?.phoneNumber ?? null
+  }, [profile?.phoneNumber, user?.phoneNumber])
+
+  const joinedLabel = useMemo(() => {
+    return profile?.createdAt ? formatDateDisplay(profile.createdAt) : null
+  }, [profile?.createdAt])
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-  {/* Profile content centered */}
-  <View style={styles.profileSection}>
-    <Image 
-      source={require("../../assets/call-duck-royalty-free-image-1732105274.jpg")} 
-      style={styles.profileImage}
-    />
-    <Text style={styles.username}>{user?.username || user?.name || user?.email || "User"}</Text>
-    {user?.email && (
-      <Text style={styles.email}>{user.email}</Text>
-    )}
-  </View>
+        <View style={styles.profileSection}>
+          <View style={styles.profileImageWrapper}>
+            <Image
+              source={profileImageSource}
+              style={styles.profileImage}
+            />
+            {isProfileLoading && (
+              <View style={styles.profileImageOverlay}>
+                <ActivityIndicator size="small" color="#fff" />
+              </View>
+            )}
+          </View>
+          <View style={styles.usernameContainer}>
+          <Text style={styles.username}>{displayName}</Text>
+{/* 
+          {displayRoleLabel ? <Text style={styles.roleLabel}>{displayRoleLabel == 'gardener' ? <MaterialCommunityIcons  name="leaf" size={ms(15)} color="#fff" /> : <MaterialCommunityIcons name="person" size={ms(15)} color="#fff" />}</Text> : null} */}
 
-  {/* Absolute-positioned hamburger menu */}
-  <TouchableOpacity
-    style={styles.menuButton}
-    onPress={() => router.push("/settings")}
-  >
-    <MaterialCommunityIcons name="menu" size={28} color="#1a1a1a" />
-  </TouchableOpacity>
-</View>
+          </View>
+          {displayEmail ? <Text style={styles.email}>{displayEmail}</Text> : null}
+          {/* {profileError ? <Text style={styles.errorText}>{profileError}</Text> : null} */}
+        </View>
+
+        <TouchableOpacity
+          style={styles.menuButton}
+          onPress={() => router.push("/settings")}
+        >
+          <MaterialCommunityIcons name="menu" size={28} color="#1a1a1a" />
+        </TouchableOpacity>
+      </View>
 
 
       {/* Tabs */}
@@ -223,10 +316,26 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#fff",
   },
+  usernameContainer:{
+    flexDirection:'row',
+    alignItems:'center',
+    justifyContent:'center',
+  },
+  roleLabel:{
+    fontSize: ms(12),
+    backgroundColor: "#4e9c63",
+    marginTop: vs(4),
+    paddingHorizontal: ms(10),
+    color:'white',
+    borderRadius: ms(100),
+    paddingVertical: vs(4),
+    fontWeight:'bold',
+    marginLeft: hs(10),
+  },
   header: {
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: vs(20),
+    paddingTop: vs(50),
     paddingBottom: vs(30),
     position: "relative",
     minHeight: vs(160), // 👈 ensures enough space for the profile image + name
@@ -244,13 +353,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  
+  profileImageWrapper: {
+    position: "relative",
+    width: hs(80),
+    height: hs(80),
+    marginBottom: vs(12),
+  },
   profileImage: {
     width: hs(80),
     height: hs(80),
     borderRadius: ms(40),
-    marginBottom: vs(12),
+    marginBottom: 0,
     resizeMode: "cover",
+  },
+  profileImageOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: ms(40),
+    backgroundColor: "rgba(0,0,0,0.25)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   username: {
     fontSize: ms(20),
@@ -261,6 +386,18 @@ const styles = StyleSheet.create({
     fontSize: ms(14),
     color: "#666",
     marginTop: vs(4),
+  },
+  metaText: {
+    fontSize: ms(12),
+    color: "#777",
+    marginTop: vs(4),
+  },
+  errorText: {
+    fontSize: ms(12),
+    color: "#D32F2F",
+    marginTop: vs(8),
+    textAlign: "center",
+    paddingHorizontal: hs(20),
   },
   tabsWrapper: {
     marginHorizontal: -hs(20),
@@ -310,3 +447,25 @@ const styles = StyleSheet.create({
     color: "#999",
   },
 })
+
+function formatDateDisplay(dateString: string): string {
+  const date = new Date(dateString)
+  if (Number.isNaN(date.getTime())) {
+    return dateString
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(date)
+}
+
+function formatLabel(value: string): string {
+  return value
+    .toString()
+    .replace(/[_-]+/g, " ")
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ")
+}

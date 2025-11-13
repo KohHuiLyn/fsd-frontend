@@ -1,77 +1,234 @@
 "use client"
 
+import { fetchPlantSpeciesList, type PlantSpecies, type SpeciesListParams } from "@/services/plantService"
 import { horizontalScale as hs, moderateScale as ms, verticalScale as vs } from "@/utils/scale"
 import { MaterialCommunityIcons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
-import { useState } from "react"
-import { Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import {
+  ActivityIndicator,
+  FlatList,
+  Image,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
-type Plant = {
-  id: string
-  name: string
-  scientificName?: string
-  description: string
-  image: any
-  tags: string[]
-  isBookmarked?: boolean
+type FilterOption = {
+  label: string
+  params: Partial<SpeciesListParams>
 }
+
+const PLACEHOLDER_IMAGE = require("../../assets/images/dummy/chilli_padi.jpg")
 
 export default function PlantPedia() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const [selectedCategory, setSelectedCategory] = useState("All Categories")
+  const [selectedFilter, setSelectedFilter] = useState<string>("All Plants")
   const [showCategoryModal, setShowCategoryModal] = useState(false)
-  const [bookmarkedPlants, setBookmarkedPlants] = useState<Set<string>>(new Set())
+  const [bookmarkedPlants, setBookmarkedPlants] = useState<Set<number>>(new Set())
+  const [plants, setPlants] = useState<PlantSpecies[]>([])
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(true)
+  const [isInitialLoading, setIsInitialLoading] = useState(false)
+  const [isFetchingMore, setIsFetchingMore] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const placeholderDescription =
-    "Papaver somniferum, commonly known as the opium poppy or breadseed poppy, is a species of flowering plant in the family Papaveraceae."
 
-  const plants: Plant[] = [
-    {
-      id: "1",
-      name: "Chili Padi",
-      scientificName: "Capsicum frutescens",
-      description: placeholderDescription,
-      image: require("../../assets/images/dummy/chilli_padi.jpg"),
-      tags: ["Indoor", "Pet-friendly"],
-    },
-    {
-      id: "2",
-      name: "Mint",
-      scientificName: "Mentha",
-      description: placeholderDescription,
-      image: require("../../assets/images/dummy/chilli_padi.jpg"), // Using placeholder image
-      tags: ["Indoor", "Pet-friendly"],
-    },
-    {
-      id: "3",
-      name: "Hibiscus",
-      scientificName: "Hibiscus rosa-sinensis",
-      description: placeholderDescription,
-      image: require("../../assets/images/dummy/chilli_padi.jpg"), // Using placeholder image
-      tags: ["Indoor", "Pet-friendly"],
-    },
-  ]
 
-  const categories = ["All Categories", "Indoor", "Outdoor", "Herbs", "Flowers", "Vegetables"]
+  const filterOptions: FilterOption[] = useMemo(
+    () => [
+      { label: "All Plants", params: {} },
+      { label: "Indoor Friendly", params: { indoor: true } },
+      { label: "Edible", params: { edible: true } },
+      { label: "Poisonous", params: { poisonous: true } },
+      { label: "Perennial", params: { cycle: "perennial" } },
+      { label: "Full Sun", params: { sunlight: "full_sun" } },
+    ],
+    []
+  )
 
-  const toggleBookmark = (plantId: string) => {
+  const selectedFilterParams = useMemo(() => {
+    const match = filterOptions.find((option) => option.label === selectedFilter)
+    return match?.params ?? {}
+  }, [filterOptions, selectedFilter])
+
+  const toggleBookmark = (plantId: number) => {
     setBookmarkedPlants((prev) => {
-      const newSet = new Set(prev)
-      if (newSet.has(plantId)) {
-        newSet.delete(plantId)
+      const next = new Set(prev)
+      if (next.has(plantId)) {
+        next.delete(plantId)
       } else {
-        newSet.add(plantId)
+        next.add(plantId)
       }
-      return newSet
+      return next
     })
   }
 
-  const filteredPlants =
-    selectedCategory === "All Categories"
-      ? plants
-      : plants.filter((plant) => plant.tags.includes(selectedCategory))
+  const loadPlants = useCallback(
+    async (pageToFetch: number, options?: { refresh?: boolean }) => {
+
+
+      if (pageToFetch === 1 && !options?.refresh) {
+        setIsInitialLoading(true)
+      } else if (options?.refresh) {
+        setIsRefreshing(true)
+      } else {
+        setIsFetchingMore(true)
+      }
+
+      try {
+        const response = await fetchPlantSpeciesList({
+          ...selectedFilterParams,
+          page: pageToFetch,
+        })
+
+        setError(null)
+
+        setPlants((prev) => (pageToFetch === 1 ? response.data : [...prev, ...response.data]))
+        setPage(pageToFetch)
+        setHasMore(pageToFetch < response.last_page)
+      } catch (err: any) {
+        console.error("Failed to load plants:", err)
+        setError(err?.message ?? "Unable to load plants right now.")
+        if (pageToFetch === 1) {
+          setPlants([])
+        }
+      } finally {
+        setIsInitialLoading(false)
+        setIsFetchingMore(false)
+        setIsRefreshing(false)
+      }
+    },
+    [ selectedFilterParams]
+  )
+
+  useEffect(() => {
+    setPlants([])
+    setPage(1)
+    setHasMore(true)
+    loadPlants(1)
+  }, [loadPlants, selectedFilter])
+
+  const handleLoadMore = () => {
+    if (!isFetchingMore && !isInitialLoading && hasMore) {
+      loadPlants(page + 1)
+    }
+  }
+
+  const handleRefresh = () => {
+    loadPlants(1, { refresh: true })
+  }
+
+  const renderPlantCard = ({ item }: { item: PlantSpecies }) => {
+    const imageSource = item?.default_image?.medium_url
+      ? { uri: item.default_image.medium_url }
+      : PLACEHOLDER_IMAGE
+
+    const displayName = item.common_name || item.scientific_name?.[0] || "Unknown Plant"
+    const scientificName = item.scientific_name?.join(", ")
+
+    const tagCandidates = [
+      item.family ? `Family: ${item.family}` : null,
+      item.genus ? `Genus: ${item.genus}` : null,
+      item.cycle ? `Cycle: ${formatLabel(item.cycle)}` : null,
+      item.watering ? `Watering: ${formatLabel(item.watering)}` : null,
+      ...(Array.isArray(item.sunlight) ? item.sunlight.slice(0, 2).map((sun) => formatLabel(sun)) : []),
+    ].filter(Boolean) as string[]
+
+    return (
+      <TouchableOpacity
+        key={item.id}
+        style={styles.plantCard}
+        onPress={() => {
+          router.push({
+            pathname: "/plantPediaDetails",
+            params: {
+              id: item.id.toString(),
+              plant: JSON.stringify(item),
+              tags: JSON.stringify(tagCandidates),
+              imageUrl: item.default_image?.regular_url ?? "",
+              name: displayName,
+              scientificName,
+            },
+          })
+        }}
+        activeOpacity={0.85}
+      >
+        <Image source={imageSource} style={styles.plantImage} />
+
+        <View style={styles.plantDetails}>
+          <Text style={styles.plantName}>{displayName}</Text>
+          {scientificName ? <Text style={styles.scientificName}>{scientificName}</Text> : null}
+
+          <View style={styles.tagsContainer}>
+            {tagCandidates.length > 0 ? (
+              tagCandidates.slice(0, 3).map((tag, index) => (
+                <View key={`${item.id}-tag-${index}`} style={styles.tag}>
+                  <Text style={styles.tagText}>{tag}</Text>
+                </View>
+              ))
+            ) : (
+              <View style={styles.tag}>
+                <Text style={styles.tagText}>Tap to view details</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.actionIcons}>
+          <TouchableOpacity
+            onPress={(event) => {
+              event.stopPropagation()
+              toggleBookmark(item.id)
+            }}
+            style={styles.iconButton}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons
+              name={bookmarkedPlants.has(item.id) ? "bookmark" : "bookmark-outline"}
+              size={ms(20)}
+              color={bookmarkedPlants.has(item.id) ? "#4CAF50" : "#666"}
+            />
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    )
+  }
+
+  const renderEmptyState = () => {
+    if (isInitialLoading) {
+      return (
+        <View style={styles.emptyStateContainer}>
+          <ActivityIndicator size="large" color="#4CAF50" />
+          <Text style={styles.emptyStateText}>Loading plants...</Text>
+        </View>
+      )
+    }
+
+    if (error) {
+      return (
+        <View style={styles.emptyStateContainer}>
+          <Text style={styles.emptyStateText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={() => loadPlants(1)}>
+            <Text style={styles.retryButtonText}>Try again</Text>
+          </TouchableOpacity>
+        </View>
+      )
+    }
+
+    return (
+      <View style={styles.emptyStateContainer}>
+        <Text style={styles.emptyStateText}>No plants found for this filter.</Text>
+      </View>
+    )
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -90,75 +247,30 @@ export default function PlantPedia() {
           onPress={() => setShowCategoryModal(true)}
           activeOpacity={0.8}
         >
-          <Text style={styles.categoryButtonText}>{selectedCategory}</Text>
+          <Text style={styles.categoryButtonText}>{selectedFilter}</Text>
           <MaterialCommunityIcons name="chevron-down" size={20} color="#666" />
         </TouchableOpacity>
       </View>
 
       {/* Plant List */}
-      <ScrollView
-        showsVerticalScrollIndicator={false}
+      <FlatList
+        data={plants}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={renderPlantCard}
         contentContainerStyle={styles.plantList}
-      >
-        {filteredPlants.map((plant) => (
-          <TouchableOpacity
-            key={plant.id}
-            style={styles.plantCard}
-            onPress={() => {
-              router.push({
-                pathname: "/plantPediaDetails",
-                params: {
-                  id: plant.id,
-                  name: plant.name,
-                  scientificName: plant.scientificName || plant.name,
-                  description: plant.description,
-                  tags: JSON.stringify(plant.tags),
-                },
-              })
-            }}
-            activeOpacity={0.8}
-          >
-            {/* Plant Image */}
-            <Image source={plant.image} style={styles.plantImage} />
-
-            {/* Plant Details */}
-            <View style={styles.plantDetails}>
-              <Text style={styles.plantName}>{plant.name}</Text>
-                            {/* Tags */}
-                            <View style={styles.tagsContainer}>
-                {plant.tags.map((tag, index) => (
-                  <View key={index} style={styles.tag}>
-                    <Text style={styles.tagText}>{tag}</Text>
-                  </View>
-                ))}
-              </View>
-              <Text style={styles.plantDescription} numberOfLines={2}>
-                {plant.description}
-              </Text>
-
-
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={renderEmptyState}
+        onEndReachedThreshold={0.3}
+        onEndReached={handleLoadMore}
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#4CAF50" />}
+        ListFooterComponent={
+          isFetchingMore ? (
+            <View style={styles.footerLoading}>
+              <ActivityIndicator size="small" color="#4CAF50" />
             </View>
-
-            {/* Action Icons */}
-            <View style={styles.actionIcons}>
-              <TouchableOpacity
-                onPress={(e) => {
-                  e.stopPropagation()
-                  toggleBookmark(plant.id)
-                }}
-                style={styles.iconButton}
-                activeOpacity={0.7}
-              >
-                <MaterialCommunityIcons
-                  name={bookmarkedPlants.has(plant.id) ? "bookmark" : "bookmark-outline"}
-                  size={ms(20)}
-                  color={bookmarkedPlants.has(plant.id) ? "#4CAF50" : "#666"}
-                />
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+          ) : null
+        }
+      />
 
       {/* Category Modal */}
       <Modal
@@ -181,27 +293,27 @@ export default function PlantPedia() {
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.modalScrollView}>
-              {categories.map((category) => (
+              {filterOptions.map((option) => (
                 <TouchableOpacity
-                  key={category}
+                  key={option.label}
                   style={[
                     styles.modalItem,
-                    selectedCategory === category && styles.modalItemSelected,
+                    selectedFilter === option.label && styles.modalItemSelected,
                   ]}
                   onPress={() => {
-                    setSelectedCategory(category)
+                    setSelectedFilter(option.label)
                     setShowCategoryModal(false)
                   }}
                 >
                   <Text
                     style={[
                       styles.modalItemText,
-                      selectedCategory === category && styles.modalItemTextSelected,
+                      selectedFilter === option.label && styles.modalItemTextSelected,
                     ]}
                   >
-                    {category}
+                    {option.label}
                   </Text>
-                  {selectedCategory === category && (
+                  {selectedFilter === option.label && (
                     <MaterialCommunityIcons name="check" size={20} color="#4CAF50" />
                   )}
                 </TouchableOpacity>
@@ -255,15 +367,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(20),
     paddingVertical: vs(10),
     paddingBottom: vs(100),
+    gap: vs(10),
   },
   plantCard: {
     flexDirection: "row",
     backgroundColor: "#fff",
-    marginVertical: vs(5)
+    marginBottom: vs(12),
+    borderRadius: ms(14),
+    borderWidth: 1,
+    borderColor: "#EAEAEA",
+    padding: hs(12),
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   plantImage: {
-    width: hs(100),
-    height: vs(100),
+    width: hs(96),
+    height: vs(96),
     borderRadius: ms(12),
     marginRight: hs(12),
     resizeMode: "cover",
@@ -277,12 +399,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#1a1a1a",
     marginBottom: vs(6),
-  },
-  plantDescription: {
-    fontSize: ms(13),
-    color: "#666",
-    lineHeight: ms(18),
-    marginBottom: vs(10),
   },
   tagsContainer: {
     flexDirection: "row",
@@ -370,4 +486,50 @@ const styles = StyleSheet.create({
     color: "#4CAF50",
     fontWeight: "600",
   },
+  emptyStateContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: vs(40),
+  },
+  emptyStateText: {
+    fontSize: ms(14),
+    color: "#666",
+    marginTop: vs(12),
+    textAlign: "center",
+    paddingHorizontal: hs(20),
+  },
+  retryButton: {
+    marginTop: vs(12),
+    paddingHorizontal: hs(16),
+    paddingVertical: vs(10),
+    borderRadius: ms(8),
+    backgroundColor: "#4CAF50",
+  },
+  retryButtonText: {
+    color: "#fff",
+    fontSize: ms(14),
+    fontWeight: "600",
+  },
+  footerLoading: {
+    paddingVertical: vs(16),
+  },
+  scientificName: {
+    fontSize: ms(13),
+    color: "#777",
+    marginBottom: vs(6),
+  },
 })
+
+function formatLabel(label: string | null | undefined): string {
+  if (!label) {
+    return ""
+  }
+
+  return label
+    .toString()
+    .replace(/[_-]+/g, " ")
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ")
+}

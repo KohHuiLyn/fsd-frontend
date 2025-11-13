@@ -6,6 +6,7 @@ import { useLocalSearchParams, useRouter } from "expo-router"
 import { useState } from "react"
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native"
 
+import fallbackPlantImage from "@/assets/images/dummy/chilli_padi.jpg"
 import Template from "@/components/Template"
 import AnalyticsTab from "../components/PlantDetails/AnalyticsTab"
 import GalleryTab from "../components/PlantDetails/GalleryTab"
@@ -20,10 +21,28 @@ export default function PlantDetails() {
   const [showNewEntry, setShowNewEntry] = useState(false)
 
   // 🌱 handle plant data from params
+  const rawName = typeof params.name === "string" ? params.name : undefined
+  const rawImage = typeof params.image === "string" ? params.image : undefined
+  const rawNotes = typeof params.notes === "string" ? params.notes : undefined
+
+  console.log(rawImage)
+  const resolvedName = rawName && rawName.trim() ? rawName.trim() : "Chili Padi"
+
+  let decodedImageUri: string | null = null
+  if (rawImage && rawImage.trim()) {
+    try {
+      decodedImageUri = rawImage
+    } catch (error) {
+      decodedImageUri = rawImage.trim()
+    }
+  }
+
+  const resolvedNotes = rawNotes && rawNotes.trim() ? rawNotes.trim() : "No notes added yet."
+
   const plantData = {
-    name: params.name || "Chili Padi",
-    image: params.image ? { uri: params.image } : require("../assets/images/dummy/chilli_padi.jpg"),
-    notes: "Every few days need to harvest and water, then it should be okay.",
+    name: resolvedName,
+    image: decodedImageUri ? { uri: decodedImageUri } : fallbackPlantImage,
+    notes: resolvedNotes,
     lastWatered: "30/11/25 10:03PM",
   }
 
