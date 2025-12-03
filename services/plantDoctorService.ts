@@ -1,8 +1,11 @@
-import { createApiClient, uploadFile } from './apiClient';
+import { ApiClient, uploadFile } from './apiClient';
 import { plantCareData } from './data/plantDiseases';
 
+// Plant Doctor service base URL
+const PLANT_DOCTOR_BASE_URL = 'http://54.255.221.210:8080';
+
 // Create API client instance for plant doctor service
-const apiClient = createApiClient('PLANT_DOCTOR_URL', 'http://54.255.221.210:8080');
+const apiClient = new ApiClient(PLANT_DOCTOR_BASE_URL);
 
 // Plant Doctor API Types
 export interface DiagnosisRequest {
@@ -128,8 +131,8 @@ export async function diagnosePlant(imageUri: string): Promise<DiagnosisResponse
       type: type,
     } as any);
 
-    // Get base URL for upload
-    const baseUrl = process.env.EXPO_PUBLIC_API_GATEWAY_URL;
+    // Get base URL for upload - use plant doctor URL directly
+    const baseUrl = PLANT_DOCTOR_BASE_URL;
     // Use uploadFile helper for FormData uploads
     const apiResponse = await uploadFile<DiagnosisApiResponse>(
       baseUrl,
