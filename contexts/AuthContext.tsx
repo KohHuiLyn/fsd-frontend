@@ -103,6 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role,
       });
   
+      console.log(response.token)
       // ✅ Expect token instead of user
       if (!response || !response.token) {
         console.error('Invalid registration response:', response);

@@ -69,7 +69,8 @@ function resolveProfileImageSource(profilePicture?: string | null): ImageSourceP
  *  LOGIN
  * ────────────────────────────── */
 export async function loginUser(credentials: LoginRequest): Promise<LoginResponse> {
-  const response = await apiClient.post<any>('/login/auth/login', credentials);
+  console.log(credentials);
+  const response = await apiClient.post<any>('/login/login', credentials);
 
   if (__DEV__) {
     console.log('Login API Response:', JSON.stringify(response, null, 2));

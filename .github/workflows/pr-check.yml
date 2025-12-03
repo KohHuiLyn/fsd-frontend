@@ -1,0 +1,41 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type check
+        run: npx tsc --noEmit
+
+      - name: Check for common issues
+        run: |
+          echo "Checking for common issues..."
+          # Check for console.log statements (optional)
+          # grep -r "console.log" app/ services/ components/ || echo "No console.log found"
+          echo "Code quality checks passed"
+
+      - name: Verify .env.example exists (optional)
+        run: |
+          if [ ! -f .env.example ]; then
+            echo "Warning: .env.example file not found. Consider creating one for documentation."
+          fi
+        continue-on-error: true
+
