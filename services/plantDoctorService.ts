@@ -2,7 +2,7 @@ import { ApiClient, uploadFile } from './apiClient';
 import { plantCareData } from './data/plantDiseases';
 
 // Plant Doctor service base URL
-const PLANT_DOCTOR_BASE_URL = 'http://54.255.221.210:8080';
+const PLANT_DOCTOR_BASE_URL = 'https://f2p2d4lls5.execute-api.ap-southeast-1.amazonaws.com/plantPal';
 
 // Create API client instance for plant doctor service
 const apiClient = new ApiClient(PLANT_DOCTOR_BASE_URL);
@@ -109,7 +109,7 @@ function transformDiagnosisResponse(apiResponse: DiagnosisApiResponse): Diagnosi
 
 /**
  * Diagnose plant from image URI
- * POST {PLANT_DOCTOR_URL}/doctor/predict
+ * POST {PLANT_DOCTOR_URL}/doctor-service/predict
  * Body: FormData with file key containing image file
  */
 export async function diagnosePlant(imageUri: string): Promise<DiagnosisResponse> {
@@ -136,9 +136,11 @@ export async function diagnosePlant(imageUri: string): Promise<DiagnosisResponse
     // Use uploadFile helper for FormData uploads
     const apiResponse = await uploadFile<DiagnosisApiResponse>(
       baseUrl,
-      '/doctor/predict',
+      '/doctor-service/predict',
       formData
     );
+
+    console.log('Diagnosis API Response:', apiResponse);
 
     // Transform API response to UI format
     return transformDiagnosisResponse(apiResponse);
