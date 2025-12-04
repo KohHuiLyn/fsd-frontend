@@ -70,7 +70,7 @@ function resolveProfileImageSource(profilePicture?: string | null): ImageSourceP
  * ────────────────────────────── */
 export async function loginUser(credentials: LoginRequest): Promise<LoginResponse> {
   console.log(credentials);
-  const response = await apiClient.post<any>('/login/login', credentials);
+  const response = await apiClient.post<any>('/login/auth/login', credentials);
 
   if (__DEV__) {
     console.log('Login API Response:', JSON.stringify(response, null, 2));
@@ -111,7 +111,7 @@ export async function loginUser(credentials: LoginRequest): Promise<LoginRespons
  *  REGISTER
  * ────────────────────────────── */
 export async function registerUser(userData: RegisterRequest): Promise<RegisterResponse> {
-  const response = await apiClient.post<any>('/login/register', userData);
+  const response = await apiClient.post<any>('/login/auth/register', userData);
 
   if (__DEV__) {
     console.log('Register API Response:', JSON.stringify(response, null, 2));

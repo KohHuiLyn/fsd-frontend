@@ -77,7 +77,7 @@ function buildQueryString(params: Record<string, string | number | boolean | und
 export async function createUserPlant(payload: CreateUserPlantPayload): Promise<string> {
   const formData = new FormData();
 
-  formData.append('plantName', payload.plantName);
+  formData.append('name', payload.plantName);
 //   if (payload.species !== undefined) {
 //     formData.append('species', payload.species ?? '');
 //   }
@@ -88,16 +88,31 @@ export async function createUserPlant(payload: CreateUserPlantPayload): Promise<
     formData.append('notes', payload.notes ?? '');
   }
 
-  if (payload.imageFile) {
-    formData.append('file', payload.imageFile as any);
+  if (payload.imageFile && payload.imageFile.uri) {
+    // In React Native, FormData.append for files requires an object with uri, type, and name
+    const fileObject = {
+      uri: payload.imageFile.uri,
+      type: payload.imageFile.type || 'image/jpeg',
+      name: payload.imageFile.name || `plant-${Date.now()}.jpg`,
+    };
+    
+    console.log('Appending file object:', JSON.stringify(fileObject, null, 2));
+    console.log('File URI:', fileObject.uri);
+    console.log('File type:', fileObject.type);
+    console.log('File name:', fileObject.name);
+    
+    // Append the file to FormData
+    formData.append('file', fileObject as any);
+    
+    console.log('File appended to FormData successfully');
+  } else {
+    console.log('No image file provided - imageFile:', payload.imageFile);
   }
 
-  console.log('formData', JSON.stringify(formData));
-  const response = await apiClient.post<CreatePlantResponse>('/user-plant/v1/userPlant/create', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  } as any);
+  // Log FormData structure (note: JSON.stringify won't show files properly)
+  console.log('FormData created with fields: name, notes' + (payload.imageFile ? ', file' : ''));
+  // Don't set Content-Type header - fetch will set it automatically with boundary for FormData
+  const response = await apiClient.post<CreatePlantResponse>('/user-plant/userPlant/v1/userPlant/create', formData);
 
   if (!response?.plantID) {
     throw new Error('Plant could not be created.');
@@ -113,7 +128,7 @@ export async function getUserPlant(plantId: string): Promise<UserPlant> {
   }
 
   const query = buildQueryString({ id: trimmedId });
-  const response = await apiClient.get<{ plant: any }>(`/user-plant/v1/userPlant${query}`);
+  const response = await apiClient.get<{ plant: any }>(`/user-plant/userPlant/v1/userPlant${query}`);
 
   if (!response?.plant) {
     throw new Error('Plant not found.');
@@ -123,7 +138,7 @@ export async function getUserPlant(plantId: string): Promise<UserPlant> {
 }
 
 export async function getUserPlants(): Promise<UserPlant[]> {
-  const response = await apiClient.get<{ plants?: any[] }>('/user-plant/v1/userPlants');
+  const response = await apiClient.get<{ plants?: any[] }>('/user-plant/userPlant/v1/userPlants');
     console.log('response', JSON.stringify(response));
   if (!response?.plants?.length) {
     return [];
@@ -133,7 +148,7 @@ export async function getUserPlants(): Promise<UserPlant[]> {
 }
 
 export interface SearchUserPlantsParams {
-  name?: string;
+  searchValue?: string;
   species?: string;
   location?: string;
   [key: string]: string | undefined;
@@ -141,7 +156,7 @@ export interface SearchUserPlantsParams {
 
 export async function searchUserPlants(params: SearchUserPlantsParams): Promise<UserPlant[]> {
   const query = buildQueryString(params);
-  const response = await apiClient.get<{ plants?: any[] }>(`/user-plant/search${query}`);
+  const response = await apiClient.get<{ plants?: any[] }>(`/user-plant/userPlant/search${query}`);
 
   if (!response?.plants?.length) {
     return [];
@@ -172,7 +187,7 @@ export async function updateUserPlant(plantId: string, updates: UpdateUserPlantP
   }
 
   const query = buildQueryString({ id: trimmedId });
-  const response = await apiClient.put<{ plant: any }>(`/user-plant/v1/userPlant${query}`, body);
+  const response = await apiClient.put<{ plant: any }>(`/user-plant/userPlant/v1/userPlant${query}`, body);
 
   if (!response?.plant) {
     throw new Error('Plant could not be updated.');
@@ -188,7 +203,7 @@ export async function deleteUserPlant(plantId: string): Promise<string> {
   }
 
   const query = buildQueryString({ id: trimmedId });
-  const response = await apiClient.delete<{ plantID?: string }>(`/user-plant/v1/userPlant${query}`);
+  const response = await apiClient.delete<{ plantID?: string }>(`/user-plant/userPlant/v1/userPlant${query}`);
 
   if (!response?.plantID) {
     throw new Error('Plant could not be deleted.');

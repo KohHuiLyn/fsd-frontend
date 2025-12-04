@@ -62,13 +62,20 @@ export class ApiClient {
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
 
-    const defaultHeaders: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
+    // Check if body is FormData - if so, don't set Content-Type (let fetch set it with boundary)
+    const isFormData = options.body instanceof FormData;
+
+    const defaultHeaders: HeadersInit = {};
+    
+    // Only set Content-Type for non-FormData requests
+    if (!isFormData) {
+      defaultHeaders['Content-Type'] = 'application/json';
+    }
 
     // Add auth token if available
     const token = await getStoredToken();
     if (token) {
+      console.log(token)
       defaultHeaders['Authorization'] = `Bearer ${token}`;
     }
 
@@ -86,19 +93,46 @@ export class ApiClient {
         console.log('Method:', options.method || 'GET');
       }
       const response = await fetch(url, config);
-      const data = await response.json();
+      
+      // Get response as text first to handle non-JSON responses
+      const responseText = await response.text();
+      
+      let data: any;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        // If JSON parsing fails, log the actual response
+        console.error('JSON Parse Error - Response Status:', response.status);
+        console.error('JSON Parse Error - Response Headers:', response.headers);
+        console.error('JSON Parse Error - Response Body:', responseText);
+        console.error('JSON Parse Error - Full Error:', parseError);
+        throw new Error(`Failed to parse response as JSON. Status: ${response.status}. Response: ${responseText.substring(0, 200)}`);
+      }
 
       if (!response.ok) {
         const errorMessage = (data as ApiError).message || (data as ApiError).error || 'Request failed';
-        // if (__DEV__) {
-        //   console.error('API Error:', errorMessage, 'Status:', response.status);
-        // }
-        throw new Error(errorMessage);
+        const statusCode = response.status;
+        const statusText = response.statusText;
+        
+        // Log detailed error information
+        console.error('API Request Failed:');
+        console.error('  URL:', url);
+        console.error('  Method:', options.method || 'GET');
+        console.error('  Status Code:', statusCode);
+        console.error('  Status Text:', statusText);
+        console.error('  Error Message:', errorMessage);
+        console.error('  Response Data:', JSON.stringify(data, null, 2));
+        console.error('  Response Text:', responseText);
+        
+        // Throw error with more details
+        throw new Error(`Request failed (${statusCode} ${statusText}): ${errorMessage}`);
       }
 
       return data as T;
     } catch (error: any) {
-
+      if (__DEV__) {
+        console.error('API Request Error:', error);
+      }
       throw error;
     }
   }
@@ -119,10 +153,13 @@ export class ApiClient {
    * @param options - Optional fetch options
    */
   post<T>(endpoint: string, data?: any, options?: RequestInit): Promise<T> {
+    // If data is FormData, pass it directly. Otherwise, stringify it.
+    const body = data instanceof FormData ? data : (data ? JSON.stringify(data) : undefined);
+    
     return this.request<T>(endpoint, {
       ...options,
       method: 'POST',
-      body: data ? JSON.stringify(data) : undefined,
+      body,
     });
   }
 
@@ -213,14 +250,28 @@ export async function uploadFile<T>(
       console.log('Upload Request:', url);
       console.log('Method:', config.method);
     }
-    console.log("Fetching now ")
     const response = await fetch(url, config);
-    console.log("Response ", response)
-    const data = await response.json();
+    
+    // Get response as text first to handle non-JSON responses
+    const responseText = await response.text();
+    
+    let data: any;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      // If JSON parsing fails, log the actual response
+      console.error('JSON Parse Error - Response Status:', response.status);
+      console.error('JSON Parse Error - Response Headers:', response.headers);
+      console.error('JSON Parse Error - Response Body:', responseText);
+      console.error('JSON Parse Error - Full Error:', parseError);
+      throw new Error(`Failed to parse response as JSON. Status: ${response.status}. Response: ${responseText.substring(0, 200)}`);
+    }
 
     return data as T;
   } catch (error: any) {
-    console.log("Error ", error)
+    if (__DEV__) {
+      console.error('Upload Request Error:', error);
+    }
     throw error;
   }
 }

@@ -1,26 +1,37 @@
 "use client"
 
+import { searchUserPlants, type UserPlant } from "@/services/myPlantService"
+import { fetchPlantSpeciesList, type PlantSpecies } from "@/services/plantService"
 import { horizontalScale as hs, moderateScale as ms, verticalScale as vs } from "@/utils/scale"
 import { MaterialCommunityIcons } from "@expo/vector-icons"
+import AsyncStorage from "@react-native-async-storage/async-storage"
 import { useLocalSearchParams, useRouter } from "expo-router"
-import { useState, useMemo } from "react"
-import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native"
+import { useCallback, useEffect, useState } from "react"
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 type RecentSearch = {
   id: string
   name: string
   image: any
+  imageUrl?: string | null
+  source: "myplants" | "plantpedia"
 }
 
 type SearchResult = {
   id: string
   name: string
   image: any
+  imageUrl?: string | null
   scientificName?: string
   description?: string
   tags?: string[]
+  source?: "myplants" | "plantpedia"
 }
+
+const FALLBACK_PLANT_IMAGE = require("../assets/images/dummy/chilli_padi.jpg")
+
+const STORAGE_KEY = "@plantpal_recent_searches"
 
 export default function Search() {
   const router = useRouter()
@@ -29,86 +40,108 @@ export default function Search() {
   const source = params.source as string || "myplants" // "myplants" or "plantpedia"
   
   const [searchQuery, setSearchQuery] = useState("")
-  const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([
-    {
-      id: "1",
-      name: "Chili Padi",
-      image: require("../assets/images/dummy/chilli_padi.jpg"),
-    },
-    {
-      id: "2",
-      name: "Lime",
-      image: require("../assets/images/dummy/lime.jpeg"),
-    },
-    {
-      id: "3",
-      name: "Pandan",
-      image: require("../assets/images/dummy/pandan.jpg"),
-    },
-  ])
+  const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([])
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [isLoadingRecent, setIsLoadingRecent] = useState(true)
 
-  // Mock data - in real app, this would come from props or context
-  const myPlants: SearchResult[] = [
-    {
-      id: "1",
-      name: "Chili Padi",
-      image: require("../assets/images/dummy/chilli_padi.jpg"),
-    },
-    {
-      id: "2",
-      name: "Lime",
-      image: require("../assets/images/dummy/lime.jpeg"),
-    },
-    {
-      id: "3",
-      name: "Pandan",
-      image: require("../assets/images/dummy/pandan.jpg"),
-    },
-  ]
+  // Load recent searches from AsyncStorage on mount
+  useEffect(() => {
+    const loadRecentSearches = async () => {
+      try {
+        setIsLoadingRecent(true)
+        const stored = await AsyncStorage.getItem(STORAGE_KEY)
+        if (stored) {
+          const parsed = JSON.parse(stored) as RecentSearch[]
+          // Filter to only show recent searches for the current source
+          const filtered = parsed.filter(item => item.source === source)
+          setRecentSearches(filtered)
+        }
+      } catch (error) {
+        console.error("Failed to load recent searches:", error)
+      } finally {
+        setIsLoadingRecent(false)
+      }
+    }
+    loadRecentSearches()
+  }, [source])
 
-  const plantPedia: SearchResult[] = [
-    {
-      id: "1",
-      name: "Chili Padi",
-      scientificName: "Capsicum frutescens",
-      description: "A small, very spicy chili pepper.",
-      image: require("../assets/images/dummy/chilli_padi.jpg"),
-      tags: ["Indoor", "Pet-friendly"],
-    },
-    {
-      id: "2",
-      name: "Mint",
-      scientificName: "Mentha",
-      description: "Aromatic perennial herb.",
-      image: require("../assets/images/dummy/chilli_padi.jpg"),
-      tags: ["Indoor", "Pet-friendly"],
-    },
-    {
-      id: "3",
-      name: "Hibiscus",
-      scientificName: "Hibiscus rosa-sinensis",
-      description: "Tropical flowering plant.",
-      image: require("../assets/images/dummy/chilli_padi.jpg"),
-      tags: ["Indoor", "Pet-friendly"],
-    },
-  ]
+  // Save recent searches to AsyncStorage whenever they change
+  useEffect(() => {
+    const saveRecentSearches = async () => {
+      if (isLoadingRecent) return // Don't save on initial load
+      try {
+        // Load all recent searches first
+        const stored = await AsyncStorage.getItem(STORAGE_KEY)
+        let allRecentSearches: RecentSearch[] = []
+        if (stored) {
+          allRecentSearches = JSON.parse(stored) as RecentSearch[]
+        }
+        
+        // Remove old searches for this source and add new ones (limit to 10 per source)
+        const filtered = allRecentSearches.filter(item => item.source !== source)
+        const limitedRecent = recentSearches.slice(0, 10) // Keep max 10 recent per source
+        const updated = [...limitedRecent, ...filtered]
+        
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
+      } catch (error) {
+        console.error("Failed to save recent searches:", error)
+      }
+    }
+    saveRecentSearches()
+  }, [recentSearches, source, isLoadingRecent])
 
-  const dataSource = source === "myplants" ? myPlants : plantPedia
+  // Search function using API
+  const performSearch = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([])
+      return
+    }
 
-  // Filter results based on search query
-  const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return []
-    
-    const query = searchQuery.toLowerCase()
-    return dataSource.filter((item) => {
-      const nameMatch = item.name.toLowerCase().includes(query)
-      const scientificMatch = item.scientificName?.toLowerCase().includes(query)
-      const descriptionMatch = item.description?.toLowerCase().includes(query)
-      const tagsMatch = item.tags?.some(tag => tag.toLowerCase().includes(query))
-      
-      return nameMatch || scientificMatch || descriptionMatch || tagsMatch
-    })
-  }, [searchQuery, dataSource])
+    setIsSearching(true)
+    try {
+      if (source === "myplants") {
+        // Use user plants search API
+        const results = await searchUserPlants({ searchValue: query })
+        const mappedResults: SearchResult[] = results.map((plant: UserPlant) => ({
+          id: plant.id,
+          name: plant.plantName ?? plant.name ?? "Unnamed Plant",
+          image: plant.imageUrl ? { uri: plant.imageUrl } : FALLBACK_PLANT_IMAGE,
+          imageUrl: plant.imageUrl ?? null,
+          source: "myplants" as const,
+        }))
+        setSearchResults(mappedResults)
+      } else {
+        // Use plant pedia search API
+        const response = await fetchPlantSpeciesList({ q: query, page: 1 })
+        const mappedResults: SearchResult[] = response.data.map((species: PlantSpecies) => ({
+          id: String(species.id),
+          name: species.common_name || species.scientific_name?.[0] || "Unknown Plant",
+          scientificName: species.scientific_name?.[0],
+          image: species.default_image?.regular_url 
+            ? { uri: species.default_image.regular_url } 
+            : FALLBACK_PLANT_IMAGE,
+          description: species.genus ? `Genus: ${species.genus}` : undefined,
+          source: "plantpedia" as const,
+        }))
+        setSearchResults(mappedResults)
+      }
+    } catch (error) {
+      console.error("Search failed:", error)
+      setSearchResults([])
+    } finally {
+      setIsSearching(false)
+    }
+  }, [source])
+
+  // Debounce search
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      performSearch(searchQuery)
+    }, 300) // 300ms debounce
+
+    return () => clearTimeout(timeoutId)
+  }, [searchQuery, performSearch])
 
   const handleRemoveRecentSearch = (id: string) => {
     setRecentSearches(prev => prev.filter(item => item.id !== id))
@@ -116,11 +149,24 @@ export default function Search() {
 
   const handleSearchItemPress = (item: SearchResult) => {
     // Add to recent searches if not already there
-    if (!recentSearches.find(r => r.id === item.id)) {
+    const existingIndex = recentSearches.findIndex(r => r.id === item.id && r.source === source)
+    if (existingIndex === -1) {
+      const newRecent: RecentSearch = {
+        id: item.id,
+        name: item.name,
+        image: item.image,
+        imageUrl: item.imageUrl ?? null,
+        source: source as "myplants" | "plantpedia",
+      }
       setRecentSearches(prev => [
-        { id: item.id, name: item.name, image: item.image },
+        newRecent,
         ...prev.slice(0, 2) // Keep only 3 most recent
       ])
+    } else {
+      // Move to top if already exists
+      const updated = [...recentSearches]
+      const [existing] = updated.splice(existingIndex, 1)
+      setRecentSearches([existing, ...updated])
     }
 
     // Navigate based on source
@@ -138,6 +184,18 @@ export default function Search() {
         },
       })
     }
+  }
+
+  const handleRecentSearchPress = (recentItem: RecentSearch) => {
+    // Find the item in search results or create a search result from recent
+    const searchResult: SearchResult = {
+      id: recentItem.id,
+      name: recentItem.name,
+      image: recentItem.image,
+      imageUrl: recentItem.imageUrl ?? null,
+      source: recentItem.source,
+    }
+    handleSearchItemPress(searchResult)
   }
 
   return (
@@ -168,7 +226,12 @@ export default function Search() {
         {searchQuery.trim() ? (
           // Search Results
           <View style={styles.resultsContainer}>
-            {searchResults.length > 0 ? (
+            {isSearching ? (
+              <View style={styles.emptyContainer}>
+                <ActivityIndicator size="large" color="#4CAF50" />
+                <Text style={[styles.emptyText, { marginTop: vs(12) }]}>Searching...</Text>
+              </View>
+            ) : searchResults.length > 0 ? (
               searchResults.map((item) => (
                 <TouchableOpacity
                   key={item.id}
@@ -200,32 +263,37 @@ export default function Search() {
           // Recent Searches
           <View style={styles.recentSearchesContainer}>
             <Text style={styles.sectionTitle}>Recent Searches</Text>
-            {recentSearches.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.recentSearchItem}
-                onPress={() => {
-                  const fullItem = dataSource.find(d => d.id === item.id)
-                  if (fullItem) {
-                    handleSearchItemPress(fullItem)
-                  }
-                }}
-                activeOpacity={0.7}
-              >
-                <Image source={item.image} style={styles.recentSearchImage} />
-                <Text style={styles.recentSearchName}>{item.name}</Text>
+            {isLoadingRecent ? (
+              <View style={styles.emptyContainer}>
+                <ActivityIndicator size="small" color="#4CAF50" />
+              </View>
+            ) : recentSearches.length > 0 ? (
+              recentSearches.map((item) => (
                 <TouchableOpacity
-                  style={styles.removeButton}
-                  onPress={(e) => {
-                    e.stopPropagation()
-                    handleRemoveRecentSearch(item.id)
-                  }}
+                  key={item.id}
+                  style={styles.recentSearchItem}
+                  onPress={() => handleRecentSearchPress(item)}
                   activeOpacity={0.7}
                 >
-                  <MaterialCommunityIcons name="close" size={18} color="#999" />
+                  <Image source={item.image} style={styles.recentSearchImage} />
+                  <Text style={styles.recentSearchName}>{item.name}</Text>
+                  <TouchableOpacity
+                    style={styles.removeButton}
+                    onPress={(e) => {
+                      e.stopPropagation()
+                      handleRemoveRecentSearch(item.id)
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons name="close" size={18} color="#999" />
+                  </TouchableOpacity>
                 </TouchableOpacity>
-              </TouchableOpacity>
-            ))}
+              ))
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No recent searches</Text>
+              </View>
+            )}
           </View>
         )}
       </ScrollView>

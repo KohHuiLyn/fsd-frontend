@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -42,10 +43,34 @@ function formatProxyDisplayDate(date: Date | null): string {
   return date.toLocaleString()
 }
 
+type CountryCode = {
+  code: string
+  dialCode: string
+  name: string
+}
+
+const COUNTRY_CODES: CountryCode[] = [
+  { code: "SG", dialCode: "+65", name: "Singapore" },
+  { code: "MY", dialCode: "+60", name: "Malaysia" },
+  { code: "ID", dialCode: "+62", name: "Indonesia" },
+  { code: "TH", dialCode: "+66", name: "Thailand" },
+  { code: "PH", dialCode: "+63", name: "Philippines" },
+  { code: "VN", dialCode: "+84", name: "Vietnam" },
+  { code: "US", dialCode: "+1", name: "United States" },
+  { code: "GB", dialCode: "+44", name: "United Kingdom" },
+  { code: "AU", dialCode: "+61", name: "Australia" },
+  { code: "CN", dialCode: "+86", name: "China" },
+  { code: "JP", dialCode: "+81", name: "Japan" },
+  { code: "KR", dialCode: "+82", name: "South Korea" },
+  { code: "IN", dialCode: "+91", name: "India" },
+]
+
 export default function AddProxyGardener() {
   const router = useRouter()
   const [name, setName] = useState("")
+  const [selectedCountryCode, setSelectedCountryCode] = useState<CountryCode>(COUNTRY_CODES[0]) // Default to Singapore
   const [phoneNumber, setPhoneNumber] = useState("")
+  const [showCountryCodeModal, setShowCountryCodeModal] = useState(false)
   const [startDateTime, setStartDateTime] = useState<Date | null>(null)
   const [endDateTime, setEndDateTime] = useState<Date | null>(null)
   const [showStartDatePicker, setShowStartDatePicker] = useState(false)
@@ -57,6 +82,7 @@ export default function AddProxyGardener() {
   const resetForm = () => {
     setName("")
     setPhoneNumber("")
+    setSelectedCountryCode(COUNTRY_CODES[0])
     setStartDateTime(null)
     setEndDateTime(null)
   }
@@ -72,9 +98,13 @@ export default function AddProxyGardener() {
 
     setIsSubmitting(true)
     try {
+      const fullPhoneNumber = phoneNumber.trim()
+        ? `${selectedCountryCode.dialCode} ${phoneNumber.trim()}`
+        : null
+
       await createProxy({
         name: name.trim(),
-        phoneNumber: phoneNumber.trim() || null,
+        phoneNumber: fullPhoneNumber,
         startDate: formatProxyApiDateTime(startDateTime),
         endDate: formatProxyApiDateTime(endDateTime),
       })
@@ -180,15 +210,26 @@ export default function AddProxyGardener() {
 
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Phone number</Text>
-              <TextInput
-                value={phoneNumber}
-                onChangeText={setPhoneNumber}
-                placeholder="+65 8123 4567"
-                keyboardType="phone-pad"
-                style={styles.input}
-                placeholderTextColor="#A7A7A7"
-                editable={!isSubmitting}
-              />
+              <View style={styles.phoneInputContainer}>
+                <TouchableOpacity
+                  style={styles.countryCodeButton}
+                  onPress={() => setShowCountryCodeModal(true)}
+                  activeOpacity={0.7}
+                  disabled={isSubmitting}
+                >
+                  <Text style={styles.countryCodeText}>{selectedCountryCode.dialCode}</Text>
+                  <MaterialCommunityIcons name="chevron-down" size={18} color="#666" />
+                </TouchableOpacity>
+                <TextInput
+                  value={phoneNumber}
+                  onChangeText={setPhoneNumber}
+                  placeholder="8123 4567"
+                  keyboardType="phone-pad"
+                  style={styles.phoneInput}
+                  placeholderTextColor="#A7A7A7"
+                  editable={!isSubmitting}
+                />
+              </View>
             </View>
 
             <View style={styles.inputGroup}>
@@ -221,6 +262,54 @@ export default function AddProxyGardener() {
         {renderDatePicker(showStartTimePicker, setShowStartTimePicker, startDateTime, "start", false)}
         {renderDatePicker(showEndDatePicker, setShowEndDatePicker, endDateTime, "end", true)}
         {renderDatePicker(showEndTimePicker, setShowEndTimePicker, endDateTime, "end", false)}
+
+        {/* Country Code Modal */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={showCountryCodeModal}
+          onRequestClose={() => setShowCountryCodeModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <TouchableOpacity
+              style={styles.modalBackdrop}
+              activeOpacity={1}
+              onPress={() => setShowCountryCodeModal(false)}
+            />
+            <View style={styles.countryCodeModalContent}>
+              <View style={styles.countryCodeModalHeader}>
+                <Text style={styles.countryCodeModalTitle}>Select Country</Text>
+                <TouchableOpacity onPress={() => setShowCountryCodeModal(false)}>
+                  <MaterialCommunityIcons name="close" size={24} color="#999" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.countryCodeList} showsVerticalScrollIndicator={false}>
+                {COUNTRY_CODES.map((country) => (
+                  <TouchableOpacity
+                    key={country.code}
+                    style={[
+                      styles.countryCodeItem,
+                      selectedCountryCode.code === country.code && styles.countryCodeItemSelected,
+                    ]}
+                    onPress={() => {
+                      setSelectedCountryCode(country)
+                      setShowCountryCodeModal(false)
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.countryCodeItemContent}>
+                      <Text style={styles.countryCodeItemDialCode}>{country.dialCode}</Text>
+                      <Text style={styles.countryCodeItemName}>{country.name}</Text>
+                    </View>
+                    {selectedCountryCode.code === country.code && (
+                      <MaterialCommunityIcons name="check" size={20} color="#4CAF50" />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
 
         <TouchableOpacity
           style={[styles.primaryButton, isSubmitting && { opacity: 0.7 }]}
@@ -325,6 +414,101 @@ const styles = StyleSheet.create({
     fontSize: ms(16),
     fontWeight: "700",
     color: "#fff",
+  },
+  phoneInputContainer: {
+    flexDirection: "row",
+    gap: hs(8),
+  },
+  countryCodeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F6F8F9",
+    borderRadius: ms(14),
+    paddingHorizontal: hs(12),
+    paddingVertical: vs(14),
+    gap: hs(6),
+    minWidth: hs(80),
+  },
+  countryCodeText: {
+    fontSize: ms(15),
+    fontWeight: "600",
+    color: "#1A1A1A",
+  },
+  phoneInput: {
+    flex: 1,
+    backgroundColor: "#F6F8F9",
+    borderRadius: ms(14),
+    paddingHorizontal: hs(16),
+    paddingVertical: vs(14),
+    fontSize: ms(15),
+    color: "#1A1A1A",
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  modalBackdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+  },
+  countryCodeModalContent: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: ms(20),
+    borderTopRightRadius: ms(20),
+    paddingTop: vs(20),
+    maxHeight: "70%",
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: vs(-2) },
+    shadowOpacity: 0.1,
+    shadowRadius: ms(8),
+  },
+  countryCodeModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: hs(20),
+    marginBottom: vs(20),
+  },
+  countryCodeModalTitle: {
+    fontSize: ms(18),
+    fontWeight: "700",
+    color: "#1a1a1a",
+  },
+  countryCodeList: {
+    flexGrow: 0,
+    flexShrink: 1,
+  },
+  countryCodeItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: hs(20),
+    paddingVertical: vs(16),
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
+  },
+  countryCodeItemSelected: {
+    backgroundColor: "#F8F8F8",
+  },
+  countryCodeItemContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: hs(12),
+  },
+  countryCodeItemDialCode: {
+    fontSize: ms(16),
+    fontWeight: "600",
+    color: "#1a1a1a",
+    minWidth: hs(50),
+  },
+  countryCodeItemName: {
+    fontSize: ms(15),
+    color: "#666",
   },
 })
 

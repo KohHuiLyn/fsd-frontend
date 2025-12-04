@@ -1,10 +1,12 @@
 "use client"
 
+import { useAuth } from "@/contexts/AuthContext"
 import { createReminder, deleteReminder, getReminders, type Reminder as ReminderDto } from "@/services/reminderService"
+import { getUserProfile } from "@/services/userService"
 import { horizontalScale as hs, moderateScale as ms, verticalScale as vs } from "@/utils/scale"
 import { MaterialCommunityIcons } from "@expo/vector-icons"
-import { useCallback, useEffect, useMemo, useState } from "react"
 import DateTimePicker from "@react-native-community/datetimepicker"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import {
   ActivityIndicator,
@@ -52,7 +54,6 @@ const CATEGORY_ICONS: Record<ReminderCategory, string> = {
   mist: "weather-partly-rainy",
 }
 
-const CATEGORY_FILTERS: ReminderCategory[] = ["all", "water", "fertilise", "mist"]
 
 const WEEKDAY_OPTIONS = [
   { label: "S", value: 0, fullLabel: "Sun" },
@@ -66,7 +67,7 @@ const WEEKDAY_OPTIONS = [
 
 export default function Reminders() {
   const insets = useSafeAreaInsets()
-  const [selectedFilter, setSelectedFilter] = useState<ReminderCategory>("all")
+  const { user } = useAuth()
   const [selectedDate, setSelectedDate] = useState<number>(2)
   const [reminders, setReminders] = useState<ReminderItem[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(false)
@@ -78,6 +79,7 @@ export default function Reminders() {
   const [newReminderNotes, setNewReminderNotes] = useState<string>("")
   const [newReminderDueAt, setNewReminderDueAt] = useState<string>(new Date().toISOString())
   const [newReminderSelectedDays, setNewReminderSelectedDays] = useState<Set<number>>(new Set())
+  const [userPhoneNumber, setUserPhoneNumber] = useState<string | null>(null)
 
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [showTimePicker, setShowTimePicker] = useState(false)
@@ -157,22 +159,39 @@ export default function Reminders() {
     loadReminders()
   }, [loadReminders])
 
+  // Load user phone number from profile
+  useEffect(() => {
+    const loadUserPhoneNumber = async () => {
+      if (!user?.id) {
+        return
+      }
+
+      try {
+        const profile = await getUserProfile(user.id)
+        setUserPhoneNumber(profile.phoneNumber ?? null)
+      } catch (error) {
+        console.error("Failed to load user phone number:", error)
+        // Fallback to user object phone number if available
+        setUserPhoneNumber(user.phoneNumber ?? null)
+      }
+    }
+
+    loadUserPhoneNumber()
+  }, [user?.id, user?.phoneNumber])
+
   const filteredReminders = useMemo(() => {
     const targetDate = dates[selectedDate]?.date;
     if (!targetDate) return reminders;
   
     return reminders.filter((reminder) => {
-      // Category filter
-      const matchCategory = selectedFilter === "all" || reminder.category === selectedFilter;
-  
-      // Date filter
+      // Date filter only
       if (!reminder.dueAt) return false;
       const reminderDate = new Date(reminder.dueAt);
       const matchDate = isSameDay(reminderDate, targetDate);
   
-      return matchCategory && matchDate;
+      return matchDate;
     });
-  }, [reminders, selectedFilter, selectedDate, dates]);
+  }, [reminders, selectedDate, dates]);
   
   
 
@@ -191,6 +210,17 @@ export default function Reminders() {
 
     const dueDayArray = Array.from(newReminderSelectedDays).sort((a, b) => a - b)
 
+    // Format phone number: add +65 if it doesn't start with +
+    let formattedPhoneNumber: string | null = null
+    if (userPhoneNumber) {
+      const trimmedPhone = userPhoneNumber.trim()
+      if (trimmedPhone.startsWith("+")) {
+        formattedPhoneNumber = trimmedPhone
+      } else {
+        formattedPhoneNumber = `+65 ${trimmedPhone}`
+      }
+    }
+
     setIsSubmitting(true)
     try {
       await createReminder({
@@ -200,7 +230,7 @@ export default function Reminders() {
         dueDay: dueDayArray,
         isActive: true,
         isProxy: false,
-        proxy: "+65 9106 5764",
+        proxy: formattedPhoneNumber,
       })
       resetCreateForm()
       setIsCreateModalVisible(false)
@@ -211,7 +241,7 @@ export default function Reminders() {
     } finally {
       setIsSubmitting(false)
     }
-  }, [newReminderName, newReminderNotes, newReminderDueAt, newReminderSelectedDays, loadReminders, resetCreateForm])
+  }, [newReminderName, newReminderNotes, newReminderDueAt, newReminderSelectedDays, userPhoneNumber, loadReminders, resetCreateForm])
 
   const handleDeleteReminder = useCallback(
     (reminderId: string) => {
@@ -335,30 +365,6 @@ export default function Reminders() {
           )
         })}
         </ScrollView>
-      </View>
-
-      {/* Filter Buttons */}
-      <View style={styles.filterContainer}>
-        {CATEGORY_FILTERS.map((filter) => (
-          <TouchableOpacity
-            key={filter}
-            style={[
-              styles.filterButton,
-              selectedFilter === filter && styles.filterButtonSelected,
-            ]}
-            onPress={() => setSelectedFilter(filter)}
-            activeOpacity={0.8}
-          >
-            <Text
-              style={[
-                styles.filterText,
-                selectedFilter === filter && styles.filterTextSelected,
-              ]}
-            >
-              {CATEGORY_LABELS[filter]}
-            </Text>
-          </TouchableOpacity>
-        ))}
       </View>
 
       {/* Reminder List */}
@@ -621,32 +627,6 @@ const styles = StyleSheet.create({
     color: "#666",
   },
   dateTextSelected: {
-    color: "#fff",
-  },
-  filterContainer: {
-    flexDirection: "row",
-    paddingHorizontal: hs(20),
-    paddingVertical: vs(10),
-    gap: hs(10),
-  },
-  filterButton: {
-    paddingHorizontal: hs(16),
-    paddingVertical: vs(8),
-    borderRadius: ms(20),
-    backgroundColor: "#E8F5E9",
-    borderWidth: 1,
-    borderColor: "#E8F5E9",
-  },
-  filterButtonSelected: {
-    backgroundColor: "#4CAF50",
-    borderColor: "#4CAF50",
-  },
-  filterText: {
-    fontSize: ms(14),
-    fontWeight: "600",
-    color: "#4CAF50",
-  },
-  filterTextSelected: {
     color: "#fff",
   },
   reminderList: {

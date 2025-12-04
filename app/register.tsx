@@ -11,6 +11,7 @@ import {
   Alert,
   ActivityIndicator,
   Image,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,10 +21,34 @@ import { useAuth } from '@/contexts/AuthContext';
 import logo from '../assets/images/logo.png';
 import { Redirect } from 'expo-router';
 
+type CountryCode = {
+  code: string
+  dialCode: string
+  name: string
+}
+
+const COUNTRY_CODES: CountryCode[] = [
+  { code: "SG", dialCode: "+65", name: "Singapore" },
+  { code: "MY", dialCode: "+60", name: "Malaysia" },
+  { code: "ID", dialCode: "+62", name: "Indonesia" },
+  { code: "TH", dialCode: "+66", name: "Thailand" },
+  { code: "PH", dialCode: "+63", name: "Philippines" },
+  { code: "VN", dialCode: "+84", name: "Vietnam" },
+  { code: "US", dialCode: "+1", name: "United States" },
+  { code: "GB", dialCode: "+44", name: "United Kingdom" },
+  { code: "AU", dialCode: "+61", name: "Australia" },
+  { code: "CN", dialCode: "+86", name: "China" },
+  { code: "JP", dialCode: "+81", name: "Japan" },
+  { code: "KR", dialCode: "+82", name: "South Korea" },
+  { code: "IN", dialCode: "+91", name: "India" },
+]
+
 export default function RegisterScreen() {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
+  const [selectedCountryCode, setSelectedCountryCode] = useState<CountryCode>(COUNTRY_CODES[0]); // Default to Singapore
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [showCountryCodeModal, setShowCountryCodeModal] = useState(false);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState('gardener');
@@ -66,12 +91,16 @@ export default function RegisterScreen() {
       return;
     }
 
+    // Combine country code with phone number (remove all spaces)
+    const cleanedPhoneNumber = phoneNumber.trim().replace(/\s+/g, '');
+    const fullPhoneNumber = `${selectedCountryCode.dialCode}${cleanedPhoneNumber}`;
+
     setIsLoading(true);
     try {
       await register(
         email.trim(),
         username.trim(),
-        phoneNumber.trim(),
+        fullPhoneNumber,
         password,
         role
       );
@@ -140,22 +169,32 @@ export default function RegisterScreen() {
             />
           </View>
 
-          <View style={styles.inputContainer}>
-            <MaterialCommunityIcons
-              name="phone-outline"
-              size={hs(20)}
-              color="#666"
-              style={styles.inputIcon}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Phone Number"
-              placeholderTextColor="#999"
-              value={phoneNumber}
-              onChangeText={setPhoneNumber}
-              keyboardType="phone-pad"
-              autoComplete="tel"
-            />
+          <View style={styles.phoneInputContainer}>
+            <TouchableOpacity
+              style={styles.countryCodeButton}
+              onPress={() => setShowCountryCodeModal(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.countryCodeText}>{selectedCountryCode.dialCode}</Text>
+              <MaterialCommunityIcons name="chevron-down" size={18} color="#666" />
+            </TouchableOpacity>
+            <View style={[styles.inputContainer, styles.phoneInputWrapper]}>
+              <MaterialCommunityIcons
+                name="phone-outline"
+                size={hs(20)}
+                color="#666"
+                style={styles.inputIcon}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="8123 4567"
+                placeholderTextColor="#999"
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                keyboardType="phone-pad"
+                autoComplete="tel"
+              />
+            </View>
           </View>
 
           <View style={styles.inputContainer}>
@@ -236,6 +275,54 @@ export default function RegisterScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Country Code Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={showCountryCodeModal}
+        onRequestClose={() => setShowCountryCodeModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.modalBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowCountryCodeModal(false)}
+          />
+          <View style={styles.countryCodeModalContent}>
+            <View style={styles.countryCodeModalHeader}>
+              <Text style={styles.countryCodeModalTitle}>Select Country</Text>
+              <TouchableOpacity onPress={() => setShowCountryCodeModal(false)}>
+                <MaterialCommunityIcons name="close" size={24} color="#999" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.countryCodeList} showsVerticalScrollIndicator={false}>
+              {COUNTRY_CODES.map((country) => (
+                <TouchableOpacity
+                  key={country.code}
+                  style={[
+                    styles.countryCodeItem,
+                    selectedCountryCode.code === country.code && styles.countryCodeItemSelected,
+                  ]}
+                  onPress={() => {
+                    setSelectedCountryCode(country)
+                    setShowCountryCodeModal(false)
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.countryCodeItemContent}>
+                    <Text style={styles.countryCodeItemDialCode}>{country.dialCode}</Text>
+                    <Text style={styles.countryCodeItemName}>{country.name}</Text>
+                  </View>
+                  {selectedCountryCode.code === country.code && (
+                    <MaterialCommunityIcons name="check" size={20} color="#4CAF50" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -329,6 +416,100 @@ const styles = StyleSheet.create({
     fontSize: scaleFont(14),
     color: '#4CAF50',
     fontWeight: '600',
+  },
+  phoneInputContainer: {
+    flexDirection: 'row',
+    gap: hs(8),
+    marginBottom: vs(16),
+  },
+  countryCodeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
+    paddingHorizontal: hs(12),
+    gap: hs(6),
+    minWidth: hs(80),
+    height: vs(50),
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  countryCodeText: {
+    fontSize: scaleFont(15),
+    fontWeight: '600',
+    color: '#1a1a1a',
+  },
+  phoneInputWrapper: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  countryCodeModalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: vs(20),
+    maxHeight: '70%',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: vs(-2) },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  countryCodeModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: hs(20),
+    marginBottom: vs(20),
+  },
+  countryCodeModalTitle: {
+    fontSize: scaleFont(18),
+    fontWeight: '700',
+    color: '#1a1a1a',
+  },
+  countryCodeList: {
+    flexGrow: 0,
+    flexShrink: 1,
+  },
+  countryCodeItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: hs(20),
+    paddingVertical: vs(16),
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  countryCodeItemSelected: {
+    backgroundColor: '#F8F8F8',
+  },
+  countryCodeItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(12),
+  },
+  countryCodeItemDialCode: {
+    fontSize: scaleFont(16),
+    fontWeight: '600',
+    color: '#1a1a1a',
+    minWidth: hs(50),
+  },
+  countryCodeItemName: {
+    fontSize: scaleFont(15),
+    color: '#666',
   },
 });
 

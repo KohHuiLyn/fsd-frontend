@@ -84,7 +84,7 @@ export async function createReminder(payload: CreateReminderRequest): Promise<st
   };
   console.log('body', body);
  
-  const response = await apiClient.post<ReminderCreateResponse>('/reminder/v1/reminder/create', body);
+  const response = await apiClient.post<ReminderCreateResponse>('/reminder/reminder/v1/reminder/create', body);
 
   if (!response?.reminderID) {
     throw new Error('Reminder could not be created.');
@@ -101,7 +101,7 @@ export async function getReminder(reminderId: string): Promise<Reminder | null> 
 
   try {
     const query = buildQuery({ id: trimmedId });
-    const response = await apiClient.get<{ client: any }>(`/reminder/v1/reminder${query}`);
+    const response = await apiClient.get<{ client: any }>(`/reminder/reminder/v1/reminder${query}`);
 
     if (!response?.client) {
       throw new Error('Reminder not found.');
@@ -118,7 +118,7 @@ export async function getReminder(reminderId: string): Promise<Reminder | null> 
 
 export async function getReminders(): Promise<Reminder[]> {
   try {
-    const response = await apiClient.get<{ clients?: any[] }>('/reminder/v1/reminders');
+    const response = await apiClient.get<{ clients?: any[] }>('/reminder/reminder/v1/reminders');
 
     if (!response?.clients?.length) {
       return [];
@@ -136,7 +136,7 @@ export async function getReminders(): Promise<Reminder[]> {
 export async function getDueReminders(windowSec?: number): Promise<Reminder[]> {
   const query = buildQuery({ windowSec });
   try {
-    const response = await apiClient.get<{ reminders?: any[] }>(`/reminder/v1/reminders/due${query}`);
+    const response = await apiClient.get<{ reminders?: any[] }>(`/reminder/reminder/v1/reminders/due${query}`);
 
     if (!response?.reminders?.length) {
       return [];
@@ -176,7 +176,7 @@ export async function updateReminder(reminderId: string, updates: UpdateReminder
   }
 
   const query = buildQuery({ id: trimmedId });
-  const response = await apiClient.put<{ client: any }>(`/reminder/v1/reminder${query}`, body);
+  const response = await apiClient.put<{ client: any }>(`/reminder/reminder/v1/reminder${query}`, body);
 
   if (!response?.client) {
     throw new Error('Reminder could not be updated.');
@@ -191,7 +191,7 @@ export async function deleteReminder(reminderId: string): Promise<string> {
     throw new Error('Reminder ID is required.');
   }
 
-  const response = await apiClient.delete<{ reminderIDRes?: string }>(`/reminder/v1/reminder/${trimmedId}`);
+  const response = await apiClient.delete<{ reminderIDRes?: string }>(`/reminder/reminder/v1/reminder/${trimmedId}`);
 
   if (!response?.reminderIDRes) {
     throw new Error('Reminder could not be deleted.');

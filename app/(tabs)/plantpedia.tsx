@@ -1,17 +1,16 @@
 "use client"
 
-import { fetchPlantSpeciesList, type PlantSpecies, type SpeciesListParams } from "@/services/plantService"
+import { fetchPlantSpeciesList, type PlantSpecies } from "@/services/plantService"
 import { horizontalScale as hs, moderateScale as ms, verticalScale as vs } from "@/utils/scale"
 import { MaterialCommunityIcons } from "@expo/vector-icons"
+import AsyncStorage from "@react-native-async-storage/async-storage"
 import { useRouter } from "expo-router"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import {
   ActivityIndicator,
   FlatList,
   Image,
-  Modal,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -19,18 +18,12 @@ import {
 } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
-type FilterOption = {
-  label: string
-  params: Partial<SpeciesListParams>
-}
-
 const PLACEHOLDER_IMAGE = require("../../assets/images/dummy/chilli_padi.jpg")
+const BOOKMARKS_STORAGE_KEY = "@plantpal_bookmarked_plants"
 
 export default function PlantPedia() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const [selectedFilter, setSelectedFilter] = useState<string>("All Plants")
-  const [showCategoryModal, setShowCategoryModal] = useState(false)
   const [bookmarkedPlants, setBookmarkedPlants] = useState<Set<number>>(new Set())
   const [plants, setPlants] = useState<PlantSpecies[]>([])
   const [page, setPage] = useState(1)
@@ -39,25 +32,40 @@ export default function PlantPedia() {
   const [isFetchingMore, setIsFetchingMore] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isLoadingBookmarks, setIsLoadingBookmarks] = useState(true)
 
+  // Load bookmarks from AsyncStorage on mount
+  useEffect(() => {
+    const loadBookmarks = async () => {
+      try {
+        setIsLoadingBookmarks(true)
+        const stored = await AsyncStorage.getItem(BOOKMARKS_STORAGE_KEY)
+        if (stored) {
+          const bookmarkedIds = JSON.parse(stored) as number[]
+          setBookmarkedPlants(new Set(bookmarkedIds))
+        }
+      } catch (error) {
+        console.error("Failed to load bookmarks:", error)
+      } finally {
+        setIsLoadingBookmarks(false)
+      }
+    }
+    loadBookmarks()
+  }, [])
 
-
-  const filterOptions: FilterOption[] = useMemo(
-    () => [
-      { label: "All Plants", params: {} },
-      { label: "Indoor Friendly", params: { indoor: true } },
-      { label: "Edible", params: { edible: true } },
-      { label: "Poisonous", params: { poisonous: true } },
-      { label: "Perennial", params: { cycle: "perennial" } },
-      { label: "Full Sun", params: { sunlight: "full_sun" } },
-    ],
-    []
-  )
-
-  const selectedFilterParams = useMemo(() => {
-    const match = filterOptions.find((option) => option.label === selectedFilter)
-    return match?.params ?? {}
-  }, [filterOptions, selectedFilter])
+  // Save bookmarks to AsyncStorage whenever they change
+  useEffect(() => {
+    const saveBookmarks = async () => {
+      if (isLoadingBookmarks) return // Don't save on initial load
+      try {
+        const bookmarkedIds = Array.from(bookmarkedPlants)
+        await AsyncStorage.setItem(BOOKMARKS_STORAGE_KEY, JSON.stringify(bookmarkedIds))
+      } catch (error) {
+        console.error("Failed to save bookmarks:", error)
+      }
+    }
+    saveBookmarks()
+  }, [bookmarkedPlants, isLoadingBookmarks])
 
   const toggleBookmark = (plantId: number) => {
     setBookmarkedPlants((prev) => {
@@ -73,8 +81,6 @@ export default function PlantPedia() {
 
   const loadPlants = useCallback(
     async (pageToFetch: number, options?: { refresh?: boolean }) => {
-
-
       if (pageToFetch === 1 && !options?.refresh) {
         setIsInitialLoading(true)
       } else if (options?.refresh) {
@@ -85,7 +91,6 @@ export default function PlantPedia() {
 
       try {
         const response = await fetchPlantSpeciesList({
-          ...selectedFilterParams,
           page: pageToFetch,
         })
 
@@ -106,7 +111,7 @@ export default function PlantPedia() {
         setIsRefreshing(false)
       }
     },
-    [ selectedFilterParams]
+    []
   )
 
   useEffect(() => {
@@ -114,7 +119,7 @@ export default function PlantPedia() {
     setPage(1)
     setHasMore(true)
     loadPlants(1)
-  }, [loadPlants, selectedFilter])
+  }, [loadPlants])
 
   const handleLoadMore = () => {
     if (!isFetchingMore && !isInitialLoading && hasMore) {
@@ -240,18 +245,6 @@ export default function PlantPedia() {
         </TouchableOpacity>
       </View>
 
-      {/* Category Filter */}
-      <View style={styles.filterContainer}>
-        <TouchableOpacity
-          style={styles.categoryButton}
-          onPress={() => setShowCategoryModal(true)}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.categoryButtonText}>{selectedFilter}</Text>
-          <MaterialCommunityIcons name="chevron-down" size={20} color="#666" />
-        </TouchableOpacity>
-      </View>
-
       {/* Plant List */}
       <FlatList
         data={plants}
@@ -271,57 +264,6 @@ export default function PlantPedia() {
           ) : null
         }
       />
-
-      {/* Category Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={showCategoryModal}
-        onRequestClose={() => setShowCategoryModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity
-            style={styles.modalOverlayTouchable}
-            activeOpacity={1}
-            onPress={() => setShowCategoryModal(false)}
-          />
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Category</Text>
-              <TouchableOpacity onPress={() => setShowCategoryModal(false)}>
-                <MaterialCommunityIcons name="close" size={24} color="#999" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.modalScrollView}>
-              {filterOptions.map((option) => (
-                <TouchableOpacity
-                  key={option.label}
-                  style={[
-                    styles.modalItem,
-                    selectedFilter === option.label && styles.modalItemSelected,
-                  ]}
-                  onPress={() => {
-                    setSelectedFilter(option.label)
-                    setShowCategoryModal(false)
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.modalItemText,
-                      selectedFilter === option.label && styles.modalItemTextSelected,
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
-                  {selectedFilter === option.label && (
-                    <MaterialCommunityIcons name="check" size={20} color="#4CAF50" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
     </View>
   )
 }
@@ -341,26 +283,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: ms(20),
     fontWeight: "700",
-    color: "#1a1a1a",
-  },
-  filterContainer: {
-    paddingHorizontal: hs(20),
-    paddingVertical: vs(10),
-  },
-  categoryButton: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: hs(16),
-    paddingVertical: vs(12),
-    backgroundColor: "#F5F5F5",
-    borderRadius: ms(12),
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
-  },
-  categoryButtonText: {
-    fontSize: ms(15),
-    fontWeight: "500",
     color: "#1a1a1a",
   },
   plantList: {
@@ -424,67 +346,6 @@ const styles = StyleSheet.create({
   },
   iconButton: {
     padding: ms(4),
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  modalOverlayTouchable: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.3)",
-  },
-  modalContent: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: ms(20),
-    borderTopRightRadius: ms(20),
-    paddingTop: vs(20),
-    paddingBottom: vs(20),
-    maxHeight: "70%",
-    elevation: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: vs(-2) },
-    shadowOpacity: 0.1,
-    shadowRadius: ms(8),
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: hs(20),
-    marginBottom: vs(20),
-  },
-  modalTitle: {
-    fontSize: ms(18),
-    fontWeight: "700",
-    color: "#1a1a1a",
-  },
-  modalScrollView: {
-    flexGrow: 0,
-    flexShrink: 1,
-  },
-  modalItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: hs(20),
-    paddingVertical: vs(16),
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  modalItemSelected: {
-    backgroundColor: "#F8F8F8",
-  },
-  modalItemText: {
-    fontSize: ms(16),
-    color: "#1a1a1a",
-  },
-  modalItemTextSelected: {
-    color: "#4CAF50",
-    fontWeight: "600",
   },
   emptyStateContainer: {
     flex: 1,

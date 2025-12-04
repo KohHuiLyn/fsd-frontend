@@ -95,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     role: string = 'gardener'
   ) => {
     try {
+      console.log('registering user', email, username, phoneNumber, password, role)
       const response = await registerUser({
         email,
         username,

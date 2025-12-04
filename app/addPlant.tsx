@@ -1,20 +1,24 @@
 "use client"
 
+import { createUserPlant } from "@/services/myPlantService"
+import { horizontalScale as hs, scaleFont, verticalScale as vs } from "@/utils/scale"
 import { MaterialCommunityIcons } from "@expo/vector-icons"
+import * as ImagePicker from "expo-image-picker"
 import { useRouter } from "expo-router"
 import { useState } from "react"
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Switch,
   Text,
   TextInput,
-  ScrollView,
   TouchableOpacity,
-  StyleSheet,
-  Image,
-  Switch,
+  View,
 } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
-import { horizontalScale as hs, verticalScale as vs, scaleFont } from "@/utils/scale"
 
 export default function AddPlant() {
   const router = useRouter()
@@ -23,7 +27,8 @@ export default function AddPlant() {
   const [plantName, setPlantName] = useState("")
   const [notes, setNotes] = useState("")
   const [location, setLocation] = useState("")
-  const [selectedImages, setSelectedImages] = useState<string[]>([])
+  const [selectedImage, setSelectedImage] = useState<{ uri: string; name: string; type: string } | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
   
   // Notification settings - each activity has its own schedule
   const [notificationTypes, setNotificationTypes] = useState({
@@ -87,21 +92,70 @@ export default function AddPlant() {
     }))
   }
   
-  const handleSave = () => {
-    // TODO: Save plant data
-    console.log("Saving plant:", {
-      plantName,
-      notes,
-      location,
-      selectedImages,
-      notificationTypes,
+  const handleImagePicker = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (status !== "granted") {
+      Alert.alert("Permission required", "We need access to your photos to attach a picture.")
+      return
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: false,
+      quality: 0.8,
     })
-    router.back()
+
+    if (result.canceled || !result.assets?.length) {
+      return
+    }
+
+    const asset = result.assets[0]
+    if (!asset?.uri) {
+      Alert.alert("Unable to use image", "No image URI was returned.")
+      return
+    }
+
+    const mimeType = asset.mimeType ?? (asset.uri.endsWith(".png") ? "image/png" : "image/jpeg")
+    const filename = asset.fileName ?? asset.uri.split("/").pop() ?? `plant-${Date.now()}.jpg`
+
+    setSelectedImage({
+      uri: asset.uri,
+      name: filename,
+      type: mimeType,
+    })
   }
-  
-  const handleImagePicker = () => {
-    // TODO: Implement image picker
-    console.log("Image picker")
+
+  const handleSave = async () => {
+    if (!plantName.trim()) {
+      Alert.alert("Validation Error", "Please enter a plant name.")
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      console.log('Creating plant with:', {
+        plantName: plantName.trim(),
+        notes: notes.trim() || undefined,
+        imageFile: selectedImage,
+      })
+      
+      await createUserPlant({
+        plantName: plantName.trim(),
+        notes: notes.trim() || undefined,
+        imageFile: selectedImage ?? undefined,
+      })
+      Alert.alert("Success", "Plant created successfully!", [
+        {
+          text: "OK",
+          onPress: () => router.back(),
+        },
+      ])
+    } catch (error: any) {
+      console.error("Failed to create plant:", error)
+      Alert.alert("Unable to create plant", error?.message ?? "Please try again later.")
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -112,8 +166,12 @@ export default function AddPlant() {
           <MaterialCommunityIcons name="chevron-left" size={24} color="#1a1a1a" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Add Plant</Text>
-        <TouchableOpacity onPress={handleSave}>
-          <Text style={styles.saveButton}>Save</Text>
+        <TouchableOpacity onPress={handleSave} disabled={isSaving}>
+          {isSaving ? (
+            <ActivityIndicator size="small" color="#4CAF50" />
+          ) : (
+            <Text style={styles.saveButton}>Save</Text>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -122,8 +180,8 @@ export default function AddPlant() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Plant Image(s)</Text>
           <TouchableOpacity style={styles.imagePicker} onPress={handleImagePicker}>
-            {selectedImages.length > 0 ? (
-              <Image source={{ uri: selectedImages[0] }} style={styles.imagePreview} />
+            {selectedImage ? (
+              <Image source={{ uri: selectedImage.uri }} style={styles.imagePreview} />
             ) : (
               <View style={styles.imagePlaceholder}>
                 <MaterialCommunityIcons name="camera-outline" size={32} color="#999" />

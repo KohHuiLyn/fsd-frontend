@@ -57,9 +57,8 @@ export default function MyPlants() {
     { id: "1", label: "Water", iconName: "water-outline" },
     { id: "2", label: "Fertilise", iconName: "flower-outline" },
     { id: "3", label: "Mist", iconName: "water-outline" },
-    { id: "4", label: "Prune", iconName: "cut-outline" },
-    { id: "5", label: "Repot", iconName: "leaf-outline" },
-    { id: "6", label: "Picture", iconName: "image-outline" },
+    { id: "4", label: "Prune", iconName: "content-cut" },
+    { id: "5", label: "Repot", iconName: "fence" },
   ]
 
   const mapUserPlantToItem = useCallback((plant: UserPlant): PlantListItem => {
@@ -314,22 +313,12 @@ export default function MyPlants() {
               onPress={() => {
                 if (isSelectionMode) {
                   togglePlantSelection(plant.id)
-                } else {
-                  router.push({
-                    pathname: "/plantDetails",
-                    params: {
-                      id: plant.id,
-                      name: plant.name,
-                      notes: plant.notes ?? "",
-                      image: plant.imageUrl ? encodeURIComponent(plant.imageUrl) : "",
-                    },
-                  })
                 }
               }}
               onLongPress={() => {
                 togglePlantSelection(plant.id)
               }}
-              activeOpacity={0.8}
+              activeOpacity={isSelectionMode ? 0.8 : 1}
             >
               {isSelectionMode && (
                 <View style={styles.checkboxContainer}>

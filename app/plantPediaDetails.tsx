@@ -485,20 +485,6 @@ export default function PlantPediaDetails() {
           ))}
         </View>
 
-        <TouchableOpacity
-          style={styles.saveButton}
-          onPress={() => setIsSaved(!isSaved)}
-          activeOpacity={0.8}
-        >
-          <MaterialCommunityIcons
-            name={isSaved ? "bookmark" : "bookmark-outline"}
-            size={20}
-            color="#fff"
-          />
-          <Text style={styles.saveButtonText}>
-            {isSaved ? "Saved" : "Save this plant"}
-          </Text>
-        </TouchableOpacity>
       </ScrollView>
     </Template>
   )

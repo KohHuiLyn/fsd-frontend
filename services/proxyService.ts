@@ -65,7 +65,7 @@ function buildQueryString(params: Record<string, string | number | boolean | und
 
 export async function createProxy(payload: CreateProxyRequest): Promise<string> {
     console.log('payload', JSON.stringify(payload));
-  const response = await apiClient.post<CreateProxyResponse>('/proxy/v1/proxy/create', payload);
+  const response = await apiClient.post<CreateProxyResponse>('/proxy/proxy/v1/proxy/create', payload);
 
   if (!response?.proxyID) {
     throw new Error('Proxy could not be created.');
@@ -81,7 +81,7 @@ export async function getProxy(proxyId: string): Promise<ProxyContact | null> {
   }
 
   try {
-    const response = await apiClient.get<{ proxy?: any }>(`/proxy/v1/proxy/${trimmedId}`);
+    const response = await apiClient.get<{ proxy?: any }>(`/proxy/proxy/v1/proxy/${trimmedId}`);
 
     if (!response?.proxy) {
       throw new Error('Proxy not found.');
@@ -98,7 +98,7 @@ export async function getProxy(proxyId: string): Promise<ProxyContact | null> {
 
 export async function getProxies(): Promise<ProxyContact[]> {
   try {
-    const response = await apiClient.get<{ proxys?: any[] }>('/proxy/v1/proxys');
+    const response = await apiClient.get<{ proxys?: any[] }>('/proxy/proxy/v1/proxys');
     console.log('response', JSON.stringify(response));
 
     if (!response?.proxys?.length) {
@@ -122,7 +122,7 @@ export async function searchProxies(params: SearchProxyParams): Promise<ProxyCon
   const query = buildQueryString(params);
 
   try {
-    const response = await apiClient.get<{ proxys?: any[] }>(`/proxy/v1/proxy/search${query}`);
+    const response = await apiClient.get<{ proxys?: any[] }>(`/proxy/proxy/v1/proxy/search${query}`);
 
     if (!response?.proxys?.length) {
       return [];
@@ -144,7 +144,7 @@ export async function updateProxy(proxyId: string, updates: UpdateProxyRequest):
   }
 
   console.log('updates', JSON.stringify(updates));
-  const response = await apiClient.put<{ proxy?: any }>(`/proxy/v1/proxy/${trimmedId}`, updates);
+  const response = await apiClient.put<{ proxy?: any }>(`/proxy/proxy/v1/proxy/${trimmedId}`, updates);
 
   if (!response?.proxy) {
     throw new Error('Proxy could not be updated.');
@@ -159,7 +159,7 @@ export async function deleteProxy(proxyId: string): Promise<string> {
     throw new Error('Proxy ID is required.');
   }
 
-  const response = await apiClient.delete<{ proxyID?: string }>(`/proxy/v1/proxy/${trimmedId}`);
+  const response = await apiClient.delete<{ proxyID?: string }>(`/proxy/proxy/v1/proxy/${trimmedId}`);
 
   if (!response?.proxyID) {
     throw new Error('Proxy could not be deleted.');
